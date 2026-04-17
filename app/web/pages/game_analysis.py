@@ -15,7 +15,7 @@ st.caption("Full-game SVG board with best-move arrows and eval chart.")
 game_id = st.session_state.pop("pending_game_id", None) or st.query_params.get("game_id", "")
 
 if not game_id:
-    st.warning("No game selected. Choose a game from My History or Game Search.")
+    st.warning("No game selected. Choose a game from Opening Analysis or Game Search.")
     st.stop()
 
 analysis = service.get_game_analysis(game_id)

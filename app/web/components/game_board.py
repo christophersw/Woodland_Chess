@@ -10,6 +10,8 @@ import chess.svg
 import pandas as pd
 import streamlit as st
 
+from app.web.components.html_embed import render_html_iframe
+
 
 def render_svg_game_viewer(
     pgn: str,
@@ -294,7 +296,7 @@ def render_svg_game_viewer(
     html = html + eval_chart_html
 
     # Height: board + controls + move list + optional eval chart
-    st.components.v1.html(html, height=size + 280 + eval_extra_height)
+    render_html_iframe(html, height=size + 280 + eval_extra_height)
 
 
 def render_pgn_viewer(
@@ -358,4 +360,4 @@ def render_pgn_viewer(
         </script>
         """
 
-    st.components.v1.html(html_payload, height=size + 220)
+    render_html_iframe(html_payload, height=size + 220)

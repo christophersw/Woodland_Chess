@@ -158,3 +158,149 @@ def opening_starburst_chart(df: pd.DataFrame, depth: int = 5):
         margin=dict(l=10, r=10, t=56, b=10),
     )
     return fig
+
+
+def opening_frequency_bar(df: pd.DataFrame):
+    if df.empty:
+        return go.Figure()
+
+    top = df.sort_values("games", ascending=False).head(15)
+    fig = px.bar(
+        top,
+        x="games",
+        y="opening_label",
+        orientation="h",
+        title="Opening Frequency",
+        labels={"opening_label": "Opening", "games": "Games"},
+    )
+    fig.update_layout(yaxis=dict(categoryorder="total ascending"), margin=dict(l=10, r=10, t=56, b=10))
+    return fig
+
+
+def opening_wdl_stacked(metrics_df: pd.DataFrame):
+    if metrics_df.empty:
+        return go.Figure()
+
+    top = metrics_df.sort_values("games", ascending=False).head(12).copy()
+    melted = top.melt(
+        id_vars=["opening_label", "games"],
+        value_vars=["wins", "draws", "losses"],
+        var_name="outcome",
+        value_name="count",
+    )
+    fig = px.bar(
+        melted,
+        x="opening_label",
+        y="count",
+        color="outcome",
+        title="Win / Draw / Loss by Opening",
+        labels={"opening_label": "Opening", "count": "Games", "outcome": "Outcome"},
+        color_discrete_map={"wins": "#1f77b4", "draws": "#9e9e9e", "losses": "#d62728"},
+    )
+    fig.update_layout(barmode="stack", xaxis_tickangle=-35, margin=dict(l=10, r=10, t=56, b=10))
+    return fig
+
+
+def opening_bubble(metrics_df: pd.DataFrame):
+    if metrics_df.empty:
+        return go.Figure()
+
+    fig = px.scatter(
+        metrics_df,
+        x="games",
+        y="win_pct",
+        size="games",
+        color="opening_label",
+        hover_data={"draw_pct": True, "loss_pct": True, "avg_game_length": True, "avg_move10_cp": True},
+        title="Opening Bubble Map (Frequency vs Win Rate)",
+        labels={"games": "Frequency", "win_pct": "Win %", "opening_label": "Opening"},
+        size_max=45,
+    )
+    fig.update_layout(showlegend=False, margin=dict(l=10, r=10, t=56, b=10))
+    return fig
+
+
+def opening_timeline_heatmap(timeline_df: pd.DataFrame, title: str):
+    if timeline_df.empty:
+        return go.Figure()
+
+    time_col = "time_bucket" if "time_bucket" in timeline_df.columns else "week_start"
+    bucket_label = "Week"
+    if "bucket_label" in timeline_df.columns and not timeline_df["bucket_label"].empty:
+        bucket_label = str(timeline_df["bucket_label"].iloc[0])
+
+    pivot = timeline_df.pivot_table(
+        index="opening_label",
+        columns=time_col,
+        values="games",
+        aggfunc="sum",
+        fill_value=0,
+    )
+
+    xvals = [d.strftime("%Y-%m-%d") for d in pivot.columns]
+    yvals = pivot.index.tolist()
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=pivot.values,
+            x=xvals,
+            y=yvals,
+            colorscale="Blues",
+            colorbar_title="Games",
+            hovertemplate=f"Opening: %{{y}}<br>{bucket_label}: %{{x}}<br>Games: %{{z}}<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        title=title,
+        xaxis_title=bucket_label,
+        yaxis_title="Opening",
+        margin=dict(l=10, r=10, t=56, b=10),
+    )
+    return fig
+
+
+def player_fingerprint_radar(df: pd.DataFrame):
+    if df.empty:
+        return go.Figure()
+
+    theta = df["family"].tolist()
+    r = df["share_pct"].tolist()
+    fig = go.Figure(
+        data=go.Scatterpolar(
+            r=r,
+            theta=theta,
+            fill="toself",
+            name="Opening Fingerprint",
+            line=dict(color="#2a6f97", width=3),
+            marker=dict(size=8),
+        )
+    )
+    fig.update_layout(
+        title="Player Opening Fingerprint",
+        polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
+        showlegend=False,
+        margin=dict(l=10, r=10, t=56, b=10),
+    )
+    return fig
+
+
+def opening_flow_sankey(flow_df: pd.DataFrame):
+    if flow_df.empty:
+        return go.Figure()
+
+    labels = list(dict.fromkeys(flow_df["source"].tolist() + flow_df["target"].tolist()))
+    idx_map = {label: i for i, label in enumerate(labels)}
+
+    fig = go.Figure(
+        data=[
+            go.Sankey(
+                node=dict(label=labels, pad=18, thickness=16),
+                link=dict(
+                    source=[idx_map[s] for s in flow_df["source"]],
+                    target=[idx_map[t] for t in flow_df["target"]],
+                    value=flow_df["games"].tolist(),
+                ),
+            )
+        ]
+    )
+    fig.update_layout(title="Opening-to-Opening Flow", margin=dict(l=10, r=10, t=56, b=10))
+    return fig

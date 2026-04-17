@@ -1,7 +1,7 @@
 # Woodland Chess MVP
 
 Two-page Streamlit MVP:
-- My History
+- Opening Analysis
 - Game Analysis
 - Game Search
 
@@ -21,11 +21,11 @@ Two-page Streamlit MVP:
    - `INGEST_MONTH_LIMIT=24` (optional; set `0` for full history)
 2. Run manual sync:
    python -m app.ingest.run_sync
-3. Open My History and use the `Chess.com Sync` expander to trigger sync from UI.
+3. Run sync from CLI and then open Opening Analysis to review club/player opening trends.
 
 ## Routing
 
-- My History: /my-history
+- Opening Analysis: /opening-analysis
 - Game Analysis: /game-analysis?game_id=<id>
 - Game Search: /game-search
 

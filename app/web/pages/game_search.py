@@ -23,6 +23,7 @@ from app.services.game_search_service import (
 from app.storage.database import get_session
 from app.storage.models import Game
 from app.services.opening_book import opening_at_each_ply
+from app.web.components.html_embed import render_html_iframe
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -312,7 +313,7 @@ def _render_results(results_df: pd.DataFrame) -> None:
 
             anim_html = _board_animation_html(pgn_text, max_ply=None, interval_ms=700)
             if anim_html:
-                st.components.v1.html(anim_html, height=430)
+                render_html_iframe(anim_html, height=430)
             else:
                 st.info("No PGN available for this game.")
         else:

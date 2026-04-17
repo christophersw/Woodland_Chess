@@ -22,11 +22,11 @@ def main() -> None:
     # Always register all pages so that direct URL navigation (e.g. from
     # LinkColumn clicks opening a new tab) resolves correctly. Auth is enforced
     # inside each page via require_auth(), not by hiding pages from the router.
-    history_page = st.Page(
-        "app/web/pages/my_history.py",
-        title="My History",
-        icon="📈",
-        url_path="my-history",
+    opening_analysis_page = st.Page(
+        "app/web/pages/opening_analysis.py",
+        title="Opening Analysis",
+        icon="🧭",
+        url_path="opening-analysis",
         default=True,
     )
     analysis_page = st.Page(
@@ -48,17 +48,17 @@ def main() -> None:
         if authenticated:
             _logout = st.Page(logout_page, title="Sign Out", icon="🚪", url_path="logout")
             pages: dict | list = {
-                "": [history_page, analysis_page, search_page],
+                "": [opening_analysis_page, analysis_page, search_page],
                 "Account": [_logout],
             }
         else:
             _login = st.Page(login_page, title="Sign In", icon="🔑", url_path="login")
             pages = {
-                "": [history_page, analysis_page, search_page],
+                "": [opening_analysis_page, analysis_page, search_page],
                 "Account": [_login],
             }
     else:
-        pages = [history_page, analysis_page, search_page]
+        pages = [opening_analysis_page, analysis_page, search_page]
 
     nav = st.navigation(pages, position="sidebar")
     render_admin_sidebar()
