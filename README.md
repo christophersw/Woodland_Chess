@@ -51,3 +51,27 @@ Two-page Streamlit MVP:
 - If no database URL is configured, the app uses local SQLite (`woodland_chess.db`).
 - Demo data is used only when no player/game rows exist yet.
 - Configure `DATABASE_URL` to point to Railway Postgres for shared real data.
+
+## Deploy To Railway
+
+1. Push this repo to GitHub.
+2. In Railway, create a new project and select `Deploy from GitHub repo`.
+3. Add these environment variables in Railway:
+   - `DATABASE_URL` (from Railway Postgres, if attached)
+   - `CHESS_COM_USERNAMES`
+   - `INGEST_MONTH_LIMIT`
+   - `CHESS_COM_USER_AGENT` (optional)
+   - `ANTHROPIC_API_KEY` (optional, enables AI search)
+   - `ANTHROPIC_MODEL` (optional)
+   - `AUTH_ENABLED` (`true` or `false`)
+   - `AUTH_BOOTSTRAP_ADMIN_EMAIL` (required if auth enabled)
+   - `AUTH_BOOTSTRAP_ADMIN_PASSWORD` (required if auth enabled)
+   - `AUTH_SIGNING_KEY` (required in production if auth enabled)
+4. Deploy. Railway uses `railway.toml` to:
+   - install dependencies with `pip install .`
+   - run Streamlit on `0.0.0.0:$PORT` in headless mode
+
+### Important
+
+- Do not set `PORT` manually on Railway; Railway injects it automatically.
+- If `AUTH_ENABLED=true`, always set a strong `AUTH_SIGNING_KEY`.
