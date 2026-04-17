@@ -330,8 +330,16 @@ st.title("Game Search")
 st.caption("Search your games and preview openings.")
 
 anthropic_available = is_anthropic_available()
+pending_opening_search = str(st.session_state.get("pending_opening_search", "")).strip()
 if anthropic_available:
-    search_mode = st.radio("Search mode", ["AI-Powered Search", "Keyword Search"], horizontal=True)
+    default_search_mode = 1 if pending_opening_search else 0
+    search_mode = st.radio(
+        "Search mode",
+        ["AI-Powered Search", "Keyword Search"],
+        horizontal=True,
+        index=default_search_mode,
+        key="game_search_mode",
+    )
 else:
     st.warning("ANTHROPIC_API_KEY not configured. Keyword search only.")
     search_mode = "Keyword Search"
@@ -387,6 +395,15 @@ if search_mode == "AI-Powered Search":
 # ---- Keyword Search ----
 else:
     st.markdown("### Keyword Search")
+
+    auto_opening = str(st.session_state.pop("pending_opening_search", "")).strip()
+    if auto_opening:
+        st.session_state["kw_search_query"] = auto_opening
+        result_df = keyword_game_search(auto_opening, limit=200)
+        st.session_state["kw_results"] = result_df.to_dict(orient="records")
+        st.session_state.pop("kw_error", None)
+        st.caption(f"Applied opening filter from Opening Analysis: {auto_opening}")
+
     with st.form("keyword_search_form", clear_on_submit=False):
         keyword = st.text_input(
             "Keyword",

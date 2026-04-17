@@ -8,6 +8,7 @@ import pandas as pd
 from sqlalchemy import func, select
 from sqlalchemy.orm import aliased
 
+from app.config import get_settings
 from app.storage.database import get_session, init_db
 from app.storage.models import Game, GameAnalysis, GameParticipant, MoveAnalysis, Player
 
@@ -20,6 +21,7 @@ class OpeningMetricsFilters:
 
 class OpeningAnalysisService:
     def __init__(self) -> None:
+        self._settings = get_settings()
         init_db()
 
     def list_players(self) -> list[str]:
@@ -27,10 +29,10 @@ class OpeningAnalysisService:
             rows = session.scalars(select(Player.username).order_by(Player.username)).all()
         return list(rows)
 
-    def club_recent_games(self, limit: int = 100) -> pd.DataFrame:
+    def club_recent_games(self, limit: int | None = None) -> pd.DataFrame:
         return self._recent_games(limit=limit)
 
-    def player_recent_games(self, player: str, limit: int = 100) -> pd.DataFrame:
+    def player_recent_games(self, player: str, limit: int | None = None) -> pd.DataFrame:
         if not player:
             return pd.DataFrame()
         return self._recent_games(limit=limit, player=player)
@@ -126,7 +128,12 @@ class OpeningAnalysisService:
         )
         return flow.head(40)
 
-    def _recent_games(self, limit: int, player: str | None = None) -> pd.DataFrame:
+    def _recent_games(self, limit: int | None = None, player: str | None = None) -> pd.DataFrame:
+        effective_limit = limit
+        if effective_limit is None:
+            configured_cap = int(self._settings.opening_analysis_max_rows)
+            effective_limit = configured_cap if configured_cap > 0 else None
+
         move10_alias = aliased(MoveAnalysis)
         with get_session() as session:
             stmt = (
@@ -151,8 +158,10 @@ class OpeningAnalysisService:
                     (move10_alias.analysis_id == GameAnalysis.id) & (move10_alias.ply == 20),
                 )
                 .order_by(Game.played_at.desc())
-                .limit(limit)
             )
+
+            if effective_limit is not None and effective_limit > 0:
+                stmt = stmt.limit(effective_limit)
 
             if player:
                 stmt = stmt.where(func.lower(Player.username) == player.lower())

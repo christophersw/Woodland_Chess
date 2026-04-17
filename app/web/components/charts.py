@@ -210,11 +210,14 @@ def opening_bubble(metrics_df: pd.DataFrame):
         x="games",
         y="win_pct",
         size="games",
-        color="opening_label",
-        hover_data={"draw_pct": True, "loss_pct": True, "avg_game_length": True, "avg_move10_cp": True},
+        color="wins",
+        hover_name="opening_label",
+        custom_data=["opening_label"],
+        hover_data={"wins": True, "draw_pct": True, "loss_pct": True, "avg_game_length": True, "avg_move10_cp": True},
         title="Opening Bubble Map (Frequency vs Win Rate)",
-        labels={"games": "Frequency", "win_pct": "Win %", "opening_label": "Opening"},
+        labels={"games": "Frequency", "win_pct": "Win %", "wins": "Total Wins", "opening_label": "Opening"},
         size_max=45,
+        color_continuous_scale="Viridis",
     )
     fig.update_layout(showlegend=False, margin=dict(l=10, r=10, t=56, b=10))
     return fig

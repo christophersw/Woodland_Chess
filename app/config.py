@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     database_url: str = ""
     default_history_days: int = 90
     recent_games_limit: int = 20
+    opening_analysis_max_rows: int = 999
     chess_com_usernames: str = ""
     chess_com_user_agent: str = "woodland-chess/0.1 (+club analytics app)"
     ingest_month_limit: int = 24

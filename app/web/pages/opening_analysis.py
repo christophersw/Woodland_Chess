@@ -49,8 +49,59 @@ def _timeline_bucket_for_timeframe(timeframe_days: int | None) -> str | None:
         return "W"
     return "M"
 
+
+def _selected_opening_from_chart_event(event) -> str | None:
+    if not event:
+        return None
+
+    if isinstance(event, dict):
+        selection = event.get("selection")
+    else:
+        selection = getattr(event, "selection", None)
+
+    if not selection:
+        return None
+
+    if isinstance(selection, dict):
+        points = selection.get("points") or []
+    else:
+        points = getattr(selection, "points", None) or []
+
+    if not points:
+        return None
+
+    point = points[0]
+    if not isinstance(point, dict):
+        return None
+
+    opening = point.get("y") or point.get("label") or point.get("text")
+    if not opening:
+        custom = point.get("customdata")
+        if isinstance(custom, (list, tuple)) and custom:
+            opening = custom[0]
+        elif isinstance(custom, str):
+            opening = custom
+
+    opening_text = str(opening or "").strip()
+    return opening_text or None
+
+
+def _navigate_to_opening_search(selected_opening: str, source_key: str) -> None:
+    if not selected_opening:
+        return
+
+    last_clicked_opening = st.session_state.get("last_clicked_opening")
+    last_clicked_source = st.session_state.get("last_clicked_opening_source")
+    if selected_opening == last_clicked_opening and source_key == last_clicked_source:
+        return
+
+    st.session_state["last_clicked_opening"] = selected_opening
+    st.session_state["last_clicked_opening_source"] = source_key
+    st.session_state["pending_opening_search"] = selected_opening
+    st.switch_page("app/web/pages/game_search.py")
+
 st.title("Opening Analysis")
-st.caption("Opening analytics for the most recent 100 games.")
+st.caption("Opening analytics across games in the selected timeframe (safety cap: 999).")
 
 timeframe_labels = [label for label, _ in TIMEFRAME_OPTIONS]
 selected_timeframe = st.selectbox("Timeframe", timeframe_labels, index=timeframe_labels.index("6m"))
@@ -60,10 +111,10 @@ if not players:
     st.warning("No player data available yet. Sync games first to populate opening analytics.")
     st.stop()
 
-club_df = service.club_recent_games(limit=100)
+club_df = service.club_recent_games()
 club_df = _apply_timeframe(club_df, timeframe_days)
 if club_df.empty:
-    st.info("No games found in the selected timeframe within the latest 100-game window.")
+    st.info("No games found in the selected timeframe.")
     st.stop()
 
 user = get_current_user()
@@ -101,11 +152,17 @@ club_metrics_df = service.opening_metrics_table(club_df_filtered)
 
 c1, c2 = st.columns(2)
 with c1:
-    st.plotly_chart(
-        opening_frequency_bar(club_metrics_df),
+    st.caption("Tip: click a bar to open matching games in Game Search.")
+    frequency_fig = opening_frequency_bar(club_metrics_df)
+    frequency_event = st.plotly_chart(
+        frequency_fig,
         width="stretch",
         config={"displaylogo": False, "plotlyServerURL": ""},
+        on_select="rerun",
+        key="club_opening_frequency_chart",
     )
+    selected_opening = _selected_opening_from_chart_event(frequency_event)
+    _navigate_to_opening_search(selected_opening or "", source_key="club_frequency")
 with c2:
     st.plotly_chart(
         opening_wdl_stacked(club_metrics_df),
@@ -113,11 +170,16 @@ with c2:
         config={"displaylogo": False, "plotlyServerURL": ""},
     )
 
-st.plotly_chart(
-    opening_bubble(club_metrics_df),
+bubble_fig = opening_bubble(club_metrics_df)
+bubble_event = st.plotly_chart(
+    bubble_fig,
     width="stretch",
     config={"displaylogo": False, "plotlyServerURL": ""},
+    on_select="rerun",
+    key="club_opening_bubble_chart",
 )
+bubble_selected_opening = _selected_opening_from_chart_event(bubble_event)
+_navigate_to_opening_search(bubble_selected_opening or "", source_key="club_bubble")
 
 st.subheader("Sortable Metrics Table")
 if club_metrics_df.empty:
@@ -155,11 +217,24 @@ club_timeline_df = service.opening_timeline(
     top_n=20,
     bucket=_timeline_bucket_for_timeframe(timeframe_days),
 )
-st.plotly_chart(
-    opening_timeline_heatmap(club_timeline_df, title="Top 20 Openings Timeline (Club)"),
+heatmap_player_label = table_player if table_player != "All" else "All"
+heatmap_color_label = table_color if table_color != "All" else "All"
+st.caption(
+    f"Heatmap filters - timeframe: {selected_timeframe}, player: {heatmap_player_label}, color: {heatmap_color_label}."
+)
+club_heatmap_fig = opening_timeline_heatmap(
+    club_timeline_df,
+    title=f"Top 20 Openings Timeline (Club, {selected_timeframe}, {heatmap_player_label}, {heatmap_color_label})",
+)
+club_heatmap_event = st.plotly_chart(
+    club_heatmap_fig,
     width="stretch",
     config={"displaylogo": False, "plotlyServerURL": ""},
+    on_select="rerun",
+    key="club_opening_timeline_heatmap",
 )
+heatmap_selected_opening = _selected_opening_from_chart_event(club_heatmap_event)
+_navigate_to_opening_search(heatmap_selected_opening or "", source_key="club_heatmap")
 
 st.markdown("## Member View")
 selected_player = st.selectbox(
@@ -168,7 +243,7 @@ selected_player = st.selectbox(
     index=players.index(default_player) if default_player in players else 0,
 )
 
-player_df = service.player_recent_games(selected_player, limit=100)
+player_df = service.player_recent_games(selected_player)
 player_df = _apply_timeframe(player_df, timeframe_days)
 if player_df.empty:
     st.info("No games found for this member in the selected timeframe.")
