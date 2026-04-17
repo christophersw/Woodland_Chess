@@ -91,7 +91,7 @@ if settings.database_url:
 else:
     st.caption("Data source: local SQLite (woodland_chess.db)")
 
-st.plotly_chart(elo_trend_chart(elo_df, filters.player), use_container_width=True, config={"displaylogo": False, "plotlyServerURL": ""})
+st.plotly_chart(elo_trend_chart(elo_df, filters.player), width='stretch', config={"displaylogo": False, "plotlyServerURL": ""})
 
 left, right = st.columns([1.6, 1])
 with left:
@@ -110,7 +110,7 @@ with left:
         display_cols = [c for c in cols if c in display_df.columns]
         table_event = st.dataframe(
             display_df[display_cols],
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
             column_config={
                 "game_id": None,
@@ -125,11 +125,11 @@ with left:
         if table_event and table_event.selection and table_event.selection.rows:
             sel_idx = table_event.selection.rows[0]
             sel_game_id = str(display_df.iloc[sel_idx]["game_id"])
-            if st.button("Open in Analysis", key="history_load_game", use_container_width=True):
+            if st.button("Open in Analysis", key="history_load_game", width='stretch'):
                 st.session_state["pending_game_id"] = sel_game_id
                 st.switch_page("app/web/pages/game_analysis.py")
 
 with right:
-    st.plotly_chart(opening_pie_chart(opening_df), use_container_width=True, config={"displaylogo": False, "plotlyServerURL": ""})
+    st.plotly_chart(opening_pie_chart(opening_df), width='stretch', config={"displaylogo": False, "plotlyServerURL": ""})
 
 st.caption("Select a row and click Load Game to open it in Game Analysis.")

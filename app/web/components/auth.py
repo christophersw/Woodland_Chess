@@ -84,7 +84,7 @@ def login_page() -> None:
     with st.form("login_form", clear_on_submit=False):
         email = st.text_input("Email")
         password = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Sign In", use_container_width=True)
+        submitted = st.form_submit_button("Sign In", width='stretch')
 
     if submitted:
         user = service.authenticate(email, password)
@@ -131,7 +131,7 @@ def render_admin_sidebar() -> None:
                     "Role", ["member", "admin"], index=0, key="create_member_role"
                 )
                 create_submitted = st.form_submit_button(
-                    "Create User", use_container_width=True
+                    "Create User", width='stretch'
                 )
 
             if create_submitted:

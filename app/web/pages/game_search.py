@@ -254,7 +254,7 @@ def _render_results(results_df: pd.DataFrame) -> None:
             )
         table_event = st.dataframe(
             table_df,
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
             column_config=col_cfg,
             on_select="rerun",
@@ -272,7 +272,7 @@ def _render_results(results_df: pd.DataFrame) -> None:
         sel_row = enriched.iloc[selected_row_idx]
         sel_game_id = sel_row.get("game_id", "")
         if sel_game_id:
-            if st.button("Open in Analysis", key="search_load_game", use_container_width=False):
+            if st.button("Open in Analysis", key="search_load_game", width='content'):
                 st.session_state["pending_game_id"] = str(sel_game_id)
                 st.switch_page("app/web/pages/game_analysis.py")
 
@@ -304,7 +304,7 @@ def _render_results(results_df: pd.DataFrame) -> None:
     fig = opening_starburst_chart(enriched, depth=5)
     if fig is not None:
         st.plotly_chart(
-            fig, use_container_width=True,
+            fig, width='stretch',
             config={"displaylogo": False, "plotlyServerURL": ""},
         )
     else:
@@ -340,7 +340,7 @@ if search_mode == "AI-Powered Search":
             placeholder="e.g., last 30 days losses as black in sicilian openings",
             label_visibility="collapsed",
         )
-        submitted = st.form_submit_button("Search", use_container_width=True)
+        submitted = st.form_submit_button("Search", width='stretch')
 
     if submitted and query.strip():
         try:
@@ -386,7 +386,7 @@ else:
             placeholder="e.g., sicilian, 15+10, win, opponent name",
             label_visibility="collapsed",
         )
-        submitted = st.form_submit_button("Search", use_container_width=True)
+        submitted = st.form_submit_button("Search", width='stretch')
 
     if submitted and keyword.strip():
         result_df = keyword_game_search(keyword.strip(), limit=200)
