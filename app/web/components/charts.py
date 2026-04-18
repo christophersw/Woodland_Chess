@@ -307,3 +307,59 @@ def opening_flow_sankey(flow_df: pd.DataFrame):
     )
     fig.update_layout(title="Opening-to-Opening Flow", margin=dict(l=10, r=10, t=56, b=10))
     return fig
+
+
+def opening_wins_losses_bar(metrics_df: pd.DataFrame, top_n: int = 15) -> go.Figure:
+    if metrics_df.empty:
+        return go.Figure()
+
+    top = metrics_df.sort_values("games", ascending=False).head(top_n).copy()
+
+    def _truncate(label: str, max_len: int = 30) -> str:
+        return label if len(label) <= max_len else label[:max_len - 1] + "…"
+
+    x_labels = [_truncate(str(lbl)) for lbl in top["opening_label"]]
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        name="Wins",
+        x=x_labels,
+        y=top["wins"],
+        marker_color="#2ca02c",
+        text=top["wins"],
+        textposition="outside",
+        textfont=dict(size=11),
+        hovertemplate="<b>%{x}</b><br>Wins: %{y}<extra></extra>",
+    ))
+
+    fig.add_trace(go.Bar(
+        name="Losses",
+        x=x_labels,
+        y=-top["losses"],
+        marker_color="#d62728",
+        text=top["losses"],
+        textposition="outside",
+        textfont=dict(size=11),
+        hovertemplate="<b>%{x}</b><br>Losses: %{text}<extra></extra>",
+    ))
+
+    fig.update_layout(
+        title="Most Common Openings — Wins vs Losses",
+        barmode="relative",
+        xaxis=dict(
+            title="Opening",
+            tickangle=-50,
+            tickfont=dict(size=11),
+        ),
+        yaxis=dict(
+            title="Games",
+            zeroline=True,
+            zerolinewidth=2,
+            zerolinecolor="#333",
+        ),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=10, r=10, t=70, b=180),
+    )
+
+    return fig

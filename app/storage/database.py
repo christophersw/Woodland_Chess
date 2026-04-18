@@ -119,6 +119,14 @@ def _run_lightweight_migrations() -> None:
         "classification": "VARCHAR(16)",
     })
 
+    # worker_heartbeats — created by create_all; ensure started_at exists for older DBs
+    _add_missing_columns("worker_heartbeats", {
+        "started_at": "TIMESTAMP",
+        "current_game_id": "VARCHAR(64)",
+        "jobs_completed": "INTEGER",
+        "jobs_failed": "INTEGER",
+    })
+
 
 
 def get_session() -> Session:

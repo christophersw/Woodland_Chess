@@ -149,3 +149,15 @@ class AnalysisJob(Base):
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
 
     game: Mapped[Game] = relationship(back_populates="analysis_jobs")
+
+
+class WorkerHeartbeat(Base):
+    __tablename__ = "worker_heartbeats"
+
+    worker_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    last_seen: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    status: Mapped[str] = mapped_column(String(16), default="idle")
+    current_game_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    jobs_completed: Mapped[int] = mapped_column(Integer, default=0)
+    jobs_failed: Mapped[int] = mapped_column(Integer, default=0)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

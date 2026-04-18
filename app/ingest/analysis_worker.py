@@ -15,7 +15,7 @@ _IS_TTY = sys.stdout.isatty()
 
 from app.services.stockfish_service import analyze_pgn
 from app.storage.database import ENGINE, get_session, init_db
-from app.storage.models import AnalysisJob, Game, GameAnalysis, MoveAnalysis
+from app.storage.models import AnalysisJob, Game, GameAnalysis, MoveAnalysis, WorkerHeartbeat
 
 log = logging.getLogger(__name__)
 
@@ -139,6 +139,28 @@ def _mark_completed(job_id: int) -> None:
             session.commit()
 
 
+def _heartbeat(status: str, current_game_id: str | None = None,
+               jobs_completed: int = 0, jobs_failed: int = 0) -> None:
+    """Upsert a heartbeat row for this worker so the status page can detect crashes."""
+    try:
+        with get_session() as session:
+            row = session.get(WorkerHeartbeat, _WORKER_ID)
+            if row is None:
+                row = WorkerHeartbeat(
+                    worker_id=_WORKER_ID,
+                    started_at=datetime.now(timezone.utc),
+                )
+                session.add(row)
+            row.last_seen = datetime.now(timezone.utc)
+            row.status = status
+            row.current_game_id = current_game_id
+            row.jobs_completed = jobs_completed
+            row.jobs_failed = jobs_failed
+            session.commit()
+    except Exception:
+        log.warning("Failed to write heartbeat", exc_info=True)
+
+
 def _mark_failed(job_id: int, error: str) -> None:
     with get_session() as session:
         job = session.get(AnalysisJob, job_id)
@@ -199,7 +221,11 @@ def run_worker(stockfish_path: str, depth: int = 20, threads: int = 1, poll_inte
         total = min(total, limit)
 
     processed = 0
+    failed = 0
+    _LOG_INTERVAL = 10   # emit a summary log every N completed jobs when not in TTY
     bar = tqdm(total=total, unit="game", desc="Analyzing", dynamic_ncols=True) if _IS_TTY else None
+
+    _heartbeat("starting", jobs_completed=0, jobs_failed=0)
 
     try:
         while True:
@@ -210,10 +236,14 @@ def run_worker(stockfish_path: str, depth: int = 20, threads: int = 1, poll_inte
             job = _claim_job(depth)
 
             if job is None:
+                _heartbeat("idle", jobs_completed=processed, jobs_failed=failed)
                 if poll_interval <= 0:
                     break
                 time.sleep(poll_interval)
                 continue
+
+            _heartbeat("analyzing", current_game_id=job.game_id,
+                       jobs_completed=processed, jobs_failed=failed)
 
             if bar:
                 bar.set_postfix_str(f"game {job.game_id[:16]}")
@@ -253,10 +283,20 @@ def run_worker(stockfish_path: str, depth: int = 20, threads: int = 1, poll_inte
                         job.id, processed, limit or "∞", job.game_id,
                         result.white_stats.accuracy, result.black_stats.accuracy,
                     )
+                    if processed % _LOG_INTERVAL == 0:
+                        with get_session() as session:
+                            remaining = session.execute(
+                                select(func.count()).where(AnalysisJob.status == "pending")
+                            ).scalar_one()
+                        log.info("Progress: %d completed, %d failed, %d still pending.",
+                                 processed, failed, remaining)
 
             except Exception as exc:
-                log.exception("Job %d failed: %s", job.id, exc)
+                failed += 1
+                log.exception("Job %d FAILED (game=%s): %s", job.id, job.game_id, exc)
                 _mark_failed(job.id, str(exc))
+                _heartbeat("error", current_game_id=job.game_id,
+                           jobs_completed=processed, jobs_failed=failed)
                 if bar:
                     bar.update(1)
             finally:
@@ -265,5 +305,6 @@ def run_worker(stockfish_path: str, depth: int = 20, threads: int = 1, poll_inte
     finally:
         if bar:
             bar.close()
+        _heartbeat("stopped", jobs_completed=processed, jobs_failed=failed)
 
-    log.info("Done. Processed %d game(s).", processed)
+    log.info("Done. Processed %d game(s), %d failed.", processed, failed)
