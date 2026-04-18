@@ -55,11 +55,12 @@ You convert natural-language game search requests into safe PostgreSQL SELECT qu
 Return JSON only with keys: sql_query, reasoning.
 
 STRICT RULES:
-- Query only from `games` table.
 - One SELECT statement only.
 - No INSERT/UPDATE/DELETE/DDL.
-- No JOIN, UNION, INTERSECT, EXCEPT.
-- Prefer `SELECT * FROM games ...` so rows can be shown directly.
+- Allowed tables only: `games`, `game_analysis`, `move_analysis`, `game_participants`.
+- JOIN is allowed only between allowed tables.
+- No UNION, INTERSECT, EXCEPT.
+- Prefer selecting game-level rows from `games` (or `games` + `game_analysis`) unless the user explicitly asks for move-level analysis.
 - Use LIMIT <= 200.
 - Use ILIKE for fuzzy text search on names and openings.
 - For recent games, order by played_at DESC.
@@ -80,6 +81,58 @@ CREATE TABLE games (
   lichess_opening VARCHAR(200),  -- Lichess opening name (more specific), e.g. 'Sicilian Defense: Najdorf Variation'
   pgn TEXT
 );
+
+CREATE TABLE game_analysis (
+    id INTEGER PRIMARY KEY,
+    game_id VARCHAR(64) UNIQUE REFERENCES games(id),
+    summary_cp FLOAT,
+    analyzed_at TIMESTAMP,
+    engine_depth INTEGER,
+    white_accuracy FLOAT,
+    black_accuracy FLOAT,
+    white_acpl FLOAT,
+    black_acpl FLOAT,
+    white_blunders INTEGER,
+    white_mistakes INTEGER,
+    white_inaccuracies INTEGER,
+    black_blunders INTEGER,
+    black_mistakes INTEGER,
+    black_inaccuracies INTEGER
+);
+
+CREATE TABLE move_analysis (
+    id INTEGER PRIMARY KEY,
+    analysis_id INTEGER REFERENCES game_analysis(id),
+    ply INTEGER,
+    san VARCHAR(32),
+    fen TEXT,
+    cp_eval FLOAT,
+    best_move VARCHAR(32),
+    arrow_uci VARCHAR(8),
+    cpl FLOAT,
+    classification VARCHAR(16)
+);
+
+CREATE TABLE game_participants (
+    id INTEGER PRIMARY KEY,
+    game_id VARCHAR(64) REFERENCES games(id),
+    player_id INTEGER,
+    color VARCHAR(8),
+    opponent_username VARCHAR(120),
+    player_rating INTEGER,
+    opponent_rating INTEGER,
+    result VARCHAR(32),
+    quality_score FLOAT,
+    blunder_count INTEGER,
+    mistake_count INTEGER,
+    inaccuracy_count INTEGER,
+    acpl FLOAT
+);
+
+JOIN KEYS:
+- game_analysis.game_id = games.id
+- move_analysis.analysis_id = game_analysis.id
+- game_participants.game_id = games.id
 
 KEY DATA RULES:
 - winner_username is the username of the player who won. It is NULL for draws.
@@ -142,6 +195,23 @@ ORDER BY played_at DESC LIMIT 100
 SELECT * FROM games
 WHERE played_at >= NOW() - INTERVAL '30 days'
 ORDER BY played_at DESC LIMIT 100
+
+-- Games with engine accuracy (latest first):
+SELECT g.id, g.played_at, g.white_username, g.black_username,
+       ga.white_accuracy, ga.black_accuracy, ga.engine_depth
+FROM games g
+JOIN game_analysis ga ON ga.game_id = g.id
+WHERE ga.analyzed_at IS NOT NULL
+ORDER BY g.played_at DESC
+LIMIT 100
+
+-- Find games where white accuracy was below 60:
+SELECT g.id, g.played_at, g.white_username, g.black_username, ga.white_accuracy
+FROM games g
+JOIN game_analysis ga ON ga.game_id = g.id
+WHERE ga.white_accuracy < 60
+ORDER BY g.played_at DESC
+LIMIT 100
 
 -- All draws:
 SELECT * FROM games WHERE result_pgn = '1/2-1/2' ORDER BY played_at DESC LIMIT 100
@@ -250,15 +320,26 @@ def _sanitize_sql(candidate_sql: str) -> str:
         if re.search(rf"\b{term}\b", lowered):
             raise ValueError(f"Unsafe SQL keyword: {term}")
 
-    if re.search(r"\b(join|union|intersect|except)\b", lowered):
-        raise ValueError("Query must target games only without joins/unions.")
+    if re.search(r"\b(union|intersect|except)\b", lowered):
+        raise ValueError("UNION/INTERSECT/EXCEPT are not allowed.")
 
-    games_from_pattern = re.compile(
-        r"\bfrom\s+(?:\"?[a-z_][a-z0-9_]*\"?\.)?\"?games\"?(?:\s+(?:as\s+)?[a-z_][a-z0-9_]*)?\b",
+    allowed_tables = {
+        "games",
+        "game_analysis",
+        "move_analysis",
+        "game_participants",
+    }
+    table_refs = re.findall(
+        r"\b(?:from|join)\s+(?:\"?[a-z_][a-z0-9_]*\"?\.)?\"?([a-z_][a-z0-9_]*)\"?",
+        lowered,
         flags=re.IGNORECASE,
     )
-    if not games_from_pattern.search(sql):
-        raise ValueError("Query must select from games table.")
+    if not table_refs:
+        raise ValueError("Query must include a FROM clause.")
+
+    disallowed = sorted({t for t in table_refs if t not in allowed_tables})
+    if disallowed:
+        raise ValueError(f"Query references disallowed table(s): {', '.join(disallowed)}")
 
     limit_match = re.search(r"\blimit\s+(\d+)\b", sql, flags=re.IGNORECASE)
     if limit_match:

@@ -113,7 +113,22 @@ def render_svg_game_viewer(
     <style>
       #{viewer_id} {{
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        max-width: {size + 40}px;
+        max-width: 1200px;
+      }}
+      #{viewer_id} .viewer-grid {{
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 14px;
+        align-items: start;
+      }}
+      #{viewer_id} .board-pane,
+      #{viewer_id} .analysis-pane {{
+        min-width: 0;
+      }}
+      #{viewer_id} .board-pane {{
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
       }}
       #{viewer_id} .board-wrap {{ text-align: center; }}
       #{viewer_id} .board-wrap svg {{ display: block; margin: 0 auto; }}
@@ -130,10 +145,18 @@ def render_svg_game_viewer(
       #{viewer_id} .ply-label {{
         font-size: 13px; color: #9ca3af; min-width: 70px; text-align: center;
       }}
+      #{viewer_id} .analysis-pane {{
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }}
+      #{viewer_id} .analysis-pane > div {{
+        width: 100%;
+      }}
       #{viewer_id} .move-list {{
-        max-height: 180px; overflow-y: auto; padding: 6px 4px;
+        max-height: 220px; overflow-y: auto; padding: 6px 4px;
         font-size: 13px; line-height: 1.8; border: 1px solid #374151;
-        border-radius: 6px; margin-top: 6px; background: #111827;
+        border-radius: 6px; margin-top: 0; background: #111827;
       }}
       #{viewer_id} .move-list .move-num {{ color: #6b7280; margin-left: 4px; }}
       #{viewer_id} .move-list .move {{
@@ -143,22 +166,36 @@ def render_svg_game_viewer(
       #{viewer_id} .move-list .move.active {{
         background: #2563eb; color: #fff; font-weight: 600;
       }}
+      @media (max-width: 900px) {{
+        #{viewer_id} .viewer-grid {{
+          grid-template-columns: 1fr;
+        }}
+        #{viewer_id} .move-list {{
+          max-height: 180px;
+        }}
+      }}
     </style>
 
     <div id="{viewer_id}">
-      <div class="board-wrap" id="{viewer_id}-board"></div>
-      <div class="controls">
-        <button onclick="goTo(0)" title="Start">&#x23EE;</button>
-        <button onclick="goTo(Math.max(0, currentPly-1))" title="Back">&#x25C0;</button>
-        <button id="{viewer_id}-playbtn" onclick="togglePlay()" title="Play/Pause">&#x25B6;</button>
-        <button onclick="goTo(Math.min({total_frames - 1}, currentPly+1))" title="Forward">&#x25B6;&#xFE0E;</button>
-        <button onclick="goTo({total_frames - 1})" title="End">&#x23ED;</button>
-        <input type="range" id="{viewer_id}-slider" min="0" max="{total_frames - 1}"
-               value="{start_ply}" oninput="goTo(parseInt(this.value))">
-        <span class="ply-label" id="{viewer_id}-label"></span>
+      <div class="viewer-grid">
+        <div class="board-pane">
+          <div class="board-wrap" id="{viewer_id}-board"></div>
+          <div class="controls">
+            <button onclick="goTo(0)" title="Start">&#x23EE;</button>
+            <button onclick="goTo(Math.max(0, currentPly-1))" title="Back">&#x25C0;</button>
+            <button id="{viewer_id}-playbtn" onclick="togglePlay()" title="Play/Pause">&#x25B6;</button>
+            <button onclick="goTo(Math.min({total_frames - 1}, currentPly+1))" title="Forward">&#x25B6;&#xFE0E;</button>
+            <button onclick="goTo({total_frames - 1})" title="End">&#x23ED;</button>
+            <input type="range" id="{viewer_id}-slider" min="0" max="{total_frames - 1}"
+                   value="{start_ply}" oninput="goTo(parseInt(this.value))">
+            <span class="ply-label" id="{viewer_id}-label"></span>
+          </div>
+          <div class="move-list" id="{viewer_id}-moves">{moves_html}</div>
+        </div>
+        <div class="analysis-pane">
+          <div id="{viewer_id}-eval"></div>
+        </div>
       </div>
-      <div id="{viewer_id}-eval"></div>
-      <div class="move-list" id="{viewer_id}-moves">{moves_html}</div>
     </div>
 
     <script>
@@ -198,8 +235,8 @@ def render_svg_game_viewer(
           }}
         }}
         // highlight current ply on eval chart
-        if (window._evalChart) {{
-          updateEvalHighlight(currentPly);
+        if (window._evalChart && typeof window.updateEvalHighlight === 'function') {{
+          window.updateEvalHighlight(currentPly);
         }}
       }}
 
@@ -242,31 +279,94 @@ def render_svg_game_viewer(
     eval_extra_height = 0
     if eval_data:
         eval_json = json.dumps(eval_data)
-        eval_extra_height = 270
+        eval_count = len(eval_data)
+        eval_extra_height = max(340, min(1100, 150 + eval_count * 14))
         eval_chart_html = f"""
     <script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
     <script>
     (function() {{
       const evalData = {eval_json};
-      const plies = evalData.map(d => d.ply);
-      const evals = evalData.map(d => d.cp_eval);
-      const defaultColor = '#4c78a8';
-      const highlightColor = '#e45756';
-      const colors = evals.map(() => defaultColor);
+      const MATE_CP_BASE = 10000;
+      const MATE_THRESHOLD = 9000;
+      const DISPLAY_CP_CAP = 1200;
+
+      const points = evalData.map(d => {{
+        const ply = Number(d.ply);
+        const rawCp = Number(d.cp_eval ?? 0);
+        const isMate = Math.abs(rawCp) >= MATE_THRESHOLD;
+        const side = rawCp >= 0 ? 'White' : 'Black';
+
+        let mateMoves = null;
+        if (isMate) {{
+          // If cp is encoded from mate_score (e.g. 9995 => M5), recover distance.
+          const recovered = Math.round(MATE_CP_BASE - Math.abs(rawCp));
+          if (recovered > 0) {{
+            mateMoves = recovered;
+          }}
+        }}
+
+        const displayCp = isMate
+          ? (rawCp >= 0 ? DISPLAY_CP_CAP : -DISPLAY_CP_CAP)
+          : Math.max(-DISPLAY_CP_CAP, Math.min(DISPLAY_CP_CAP, rawCp));
+
+        const hoverText = isMate
+          ? (mateMoves
+              ? `${{side}} mate in ${{mateMoves}}`
+              : `${{side}} forced mate`)
+          : `${{rawCp >= 0 ? '+' : ''}}${{Math.round(rawCp)}} cp`;
+
+        const textLabel = isMate
+          ? (mateMoves
+              ? `M${{rawCp >= 0 ? '+' : '-'}}${{mateMoves}}`
+              : `M${{rawCp >= 0 ? '+' : '-'}}`)
+          : '';
+
+        return {{
+          ply,
+          rawCp,
+          displayCp,
+          isMate,
+          hoverText,
+          textLabel,
+        }};
+      }});
+
+      const plies = points.map(p => p.ply);
+      const evals = points.map(p => p.displayCp);
+      const whiteColor = '#f9fafb';
+      const blackColor = '#111111';
+      const colors = points.map(p => p.rawCp >= 0 ? whiteColor : blackColor);
+      const lineColors = points.map(() => '#9ca3af');
+      const baseOpacity = evals.map(() => 0.82);
 
       const trace = {{
-        x: plies,
-        y: evals,
+        x: evals,
+        y: plies,
         type: 'bar',
-        marker: {{ color: colors.slice() }},
+        orientation: 'h',
+        marker: {{
+          color: colors.slice(),
+          opacity: baseOpacity.slice(),
+          line: {{ color: lineColors.slice(), width: 1 }}
+        }},
+        text: points.map(p => p.textLabel),
+        textposition: 'outside',
+        customdata: points.map(p => [p.rawCp, p.isMate, p.hoverText]),
+        hovertemplate: 'Ply %{{y}}<br>%{{customdata[2]}}<extra></extra>',
       }};
       const layout = {{
-        title: 'Engine Evaluation by Ply',
-        xaxis: {{ title: 'Ply' }},
-        yaxis: {{ title: 'Centipawns' }},
+        title: 'Engine Evaluation by Ply (White + / Black -)',
+        xaxis: {{
+          title: 'Centipawns (mate scores capped for display)',
+          zeroline: true,
+          zerolinecolor: '#9ca3af',
+          zerolinewidth: 2,
+          range: [-DISPLAY_CP_CAP * 1.1, DISPLAY_CP_CAP * 1.1]
+        }},
+        yaxis: {{ title: 'Ply', autorange: 'reversed' }},
         margin: {{ l: 50, r: 20, t: 36, b: 40 }},
+        bargap: 0.12,
         height: {eval_extra_height - 20},
-        shapes: [{{ type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 0, y1: 0, line: {{ dash: 'dot', color: '#888' }} }}],
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
         font: {{ color: '#d1d5db' }},
@@ -277,17 +377,30 @@ def render_svg_game_viewer(
         // click bar → jump board
         evalDiv.on('plotly_click', function(data) {{
           if (data.points && data.points.length > 0) {{
-            const ply = data.points[0].x;
+            const ply = data.points[0].y;
             window.goTo(ply);
           }}
         }});
         // initial highlight
-        updateEvalHighlight(window.currentPly);
+        if (typeof window.updateEvalHighlight === 'function') {{
+          window.updateEvalHighlight(window.currentPly);
+        }}
+        // ensure board render and chart highlight are synchronized once chart is ready
+        if (typeof window.goTo === 'function') {{
+          window.goTo(window.currentPly);
+        }}
       }});
 
       window.updateEvalHighlight = function(ply) {{
-        const newColors = plies.map(p => p === ply ? highlightColor : defaultColor);
-        Plotly.restyle(evalDiv, {{ 'marker.color': [newColors] }});
+        const highlightColor = '#f59e0b';
+        const lineColor = plies.map(p => p === ply ? highlightColor : '#9ca3af');
+        const opacity = plies.map(p => p === ply ? 1.0 : 0.82);
+        const lineWidth = plies.map(p => p === ply ? 3 : 1);
+        Plotly.restyle(evalDiv, {{
+          'marker.opacity': [opacity],
+          'marker.line.width': [lineWidth],
+          'marker.line.color': [lineColor]
+        }});
       }};
     }})();
     </script>

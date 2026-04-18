@@ -163,6 +163,131 @@ If a worker is killed mid-job, its jobs are left in `running` state. On the next
 
 ---
 
+## How Analysis Calculations Work
+
+This section documents every formula used to evaluate moves and compute player accuracy scores.
+
+### Engine evaluation
+
+Each position is evaluated by [Stockfish](https://stockfishchess.org/) (via [python-chess](https://python-chess.readthedocs.io/)) at a configurable search depth (default 20). The engine returns a score in **centipawns** (cp) — hundredths of a pawn — from White's perspective. Positive values favour White; negative values favour Black.
+
+**Mate scores** are encoded by `python-chess` using `score(mate_score=10000)`. A forced mate in 5 for White becomes `+10000 − 5 = +9995` cp; a forced mate in 3 against White becomes `−10000 + 3 = −9997` cp. This preserves the distance-to-mate while keeping all evaluations on a single numeric axis.
+
+### Per-move analysis loop
+
+For every move in the game, the engine evaluates the position **before** the move is played and **after**. This yields two data points per move:
+
+1. **Centipawn loss (CPL)** — how many centipawns the mover lost compared to the best available move:
+
+$$
+\text{CPL} = \max\!\big(0,\;\text{eval}_{\text{before}} - \text{eval}_{\text{after}}\big)
+$$
+
+where both evals are from the mover's perspective (White-relative for White's moves, inverted for Black's moves). CPL is always ≥ 0 because a move cannot improve on the engine's best evaluation of the position before it was played.
+
+2. **Win Percentage (Win%)** — converts the raw centipawn eval into a human-readable winning-chance percentage on a 0–100 scale.
+
+### Win Percentage formula
+
+We use the empirical sigmoid function from [Lichess](https://lichess.org/page/accuracy), calibrated against real game outcomes among 2300+ rated players ([source](https://github.com/lichess-org/lila/pull/11148)):
+
+$$
+\text{Win\%} = 50 + 50 \times \left(\frac{2}{1 + e^{-0.00368208 \times \text{cp}}} - 1\right)
+$$
+
+where `cp` is the centipawn evaluation **from the mover's perspective** (positive = favourable).
+
+| Centipawns | Win% |
+|---|---|
+| 0 (equal) | 50.0% |
+| +100 (~1 pawn advantage) | 59.1% |
+| +300 (~3 pawns) | 75.1% |
+| −300 | 24.9% |
+| +10000 (forced mate) | ≈100.0% |
+
+**Source:** [lichess-org/scalachess — `WinPercent.winningChances`](https://github.com/lichess-org/scalachess/blob/master/core/src/main/scala/eval.scala)
+
+### Per-move Accuracy
+
+Each move receives an accuracy score (0–100%) based on how much Win% the mover lost. The formula is applied to the Win% **before** and **after** the move, both from the mover's perspective:
+
+$$
+\text{Accuracy\%} = 103.1668 \times e^{-0.04354 \times (\text{Win\%}_{\text{before}} - \text{Win\%}_{\text{after}})} - 3.1669 + 1
+$$
+
+The result is clamped to [0, 100]. If the mover's Win% did not decrease (i.e. the engine considers the position no worse), accuracy is 100%.
+
+The `+1` term is an **uncertainty bonus** that accounts for imperfect analysis depth — at finite depth, the engine may not have found the absolute best move, so a small benefit of the doubt is given. This matches the Lichess implementation.
+
+The formula coefficients (`103.1668`, `0.04354`, `3.1669`) were derived via `scipy.optimize.curve_fit` against a hand-crafted accuracy curve:
+
+| Win% loss | Expected Accuracy |
+|---|---|
+| 0 | 100% |
+| 5 | ~75% |
+| 10 | ~60% |
+| 20 | ~42% |
+| 40 | ~20% |
+| 60 | ~5% |
+| 80+ | ~0% |
+
+**Source:** [lichess-org/lila — `AccuracyPercent.scala`](https://github.com/lichess-org/lila/blob/master/modules/analyse/src/main/AccuracyPercent.scala)
+
+### Game Accuracy (aggregation)
+
+Individual move accuracies are aggregated into a single game accuracy score per player using the **harmonic mean**:
+
+$$
+\text{Game Accuracy} = \frac{n}{\displaystyle\sum_{i=1}^{n} \frac{1}{\max(\text{MoveAcc}_i,\;\varepsilon)}}
+$$
+
+where $n$ is the number of moves by that player and $\varepsilon = 0.001$ prevents division by zero.
+
+The harmonic mean was chosen because it:
+- Penalises bad moves more heavily than an arithmetic mean would
+- Prevents a single blunder from being masked by many good moves
+- Better reflects the "weakest-link" nature of chess (one bad move can lose the game)
+
+Lichess uses a more complex aggregation — a blend of volatility-weighted mean and harmonic mean with sliding windows ([source](https://github.com/lichess-org/lila/blob/master/modules/analyse/src/main/AccuracyPercent.scala#L81-L112)) — but our harmonic-mean approach produces comparable results for typical games.
+
+### Average Centipawn Loss (ACPL)
+
+ACPL is the arithmetic mean of the per-move CPL values for one side:
+
+$$
+\text{ACPL} = \frac{1}{n}\sum_{i=1}^{n} \text{CPL}_i
+$$
+
+This is the traditional metric for measuring playing strength. Lower is better; grandmasters typically average 10–25 ACPL.
+
+### Move classification
+
+Moves are classified by their centipawn loss using fixed thresholds:
+
+| Classification | CPL range |
+|---|---|
+| Excellent | 0–9 |
+| Good | 10–49 |
+| Inaccuracy | 50–99 |
+| Mistake | 100–299 |
+| Blunder | 300+ |
+
+> **Note:** Chess.com's newer "Classification V2" uses **Expected Points** (a win-probability model that factors in player rating) rather than fixed CPL thresholds. Our classification uses the simpler CPL-based approach, which is engine-rating-independent. See [Chess.com's documentation](https://support.chess.com/en/articles/8572705-how-are-moves-classified-what-is-a-blunder-or-brilliant-etc) for details on their model.
+
+### Persisted data
+
+After analysis, the following are stored in the database per game:
+
+| Table | Key fields |
+|---|---|
+| `game_analysis` | `white_accuracy`, `black_accuracy`, `white_acpl`, `black_acpl`, `white_blunders`, `white_mistakes`, `white_inaccuracies` (same for black), `engine_depth`, `analyzed_at` |
+| `move_analysis` | `ply`, `san`, `fen`, `cp_eval` (white-relative), `best_move` (UCI), `cpl`, `classification` |
+| `game_participants` | `quality_score` (= accuracy), `acpl`, `blunder_count`, `mistake_count`, `inaccuracy_count` |
+
+When stored Stockfish accuracy is unavailable (e.g. for games not yet fully analyzed), the Game Analysis page falls back to a **derived accuracy** computed from the stored per-move CPL values using the same Win% → per-move accuracy → harmonic mean pipeline described above.
+
+---
+
 ## Routing
 
 | Page | URL |
