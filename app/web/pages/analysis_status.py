@@ -60,6 +60,7 @@ def _get_recent_jobs(limit: int = 50) -> pd.DataFrame:
                 AnalysisJob.completed_at,
                 AnalysisJob.retry_count,
                 AnalysisJob.error_message,
+                AnalysisJob.duration_seconds,
             )
             .order_by(AnalysisJob.id.desc())
             .limit(limit)
@@ -90,6 +91,17 @@ else:
             "stopped": "🛑",
         }.get(hb.status, "❓")
 
+        hw_parts = []
+        if hb.cpu_model:
+            hw_parts.append(hb.cpu_model)
+        if hb.cpu_cores:
+            hw_parts.append(f"{hb.cpu_cores} cores")
+        if hb.memory_mb:
+            hw_parts.append(f"{hb.memory_mb // 1024} GB RAM")
+        if hb.stockfish_binary:
+            hw_parts.append(f"`{hb.stockfish_binary}`")
+        hw_label = " · ".join(hw_parts) if hw_parts else ""
+
         if age_s > _STALE_SECONDS and hb.status not in ("stopped",):
             st.error(
                 f"**{hb.worker_id}** — last seen {age_label}. "
@@ -97,18 +109,22 @@ else:
             )
         elif hb.status == "stopped":
             st.info(f"{status_icon} **{hb.worker_id}** — stopped cleanly, last seen {age_label}. "
-                    f"Completed {hb.jobs_completed} / failed {hb.jobs_failed}.")
+                    f"Completed {hb.jobs_completed} / failed {hb.jobs_failed}."
+                    + (f"  \n{hw_label}" if hw_label else ""))
         elif hb.status == "idle":
             st.success(f"{status_icon} **{hb.worker_id}** — idle, last seen {age_label}. "
-                       f"Completed {hb.jobs_completed} / failed {hb.jobs_failed}.")
+                       f"Completed {hb.jobs_completed} / failed {hb.jobs_failed}."
+                       + (f"  \n{hw_label}" if hw_label else ""))
         elif hb.status == "analyzing":
             st.success(
                 f"{status_icon} **{hb.worker_id}** — analyzing `{hb.current_game_id}`, "
                 f"last seen {age_label}. "
                 f"Completed {hb.jobs_completed} / failed {hb.jobs_failed}."
+                + (f"  \n{hw_label}" if hw_label else "")
             )
         else:
-            st.warning(f"{status_icon} **{hb.worker_id}** — {hb.status}, last seen {age_label}.")
+            st.warning(f"{status_icon} **{hb.worker_id}** — {hb.status}, last seen {age_label}."
+                       + (f"  \n{hw_label}" if hw_label else ""))
 
 st.markdown("---")
 
@@ -140,11 +156,14 @@ df = _get_recent_jobs(50)
 if not df.empty:
     status_icons = {"completed": "✅", "running": "⏳", "pending": "🕐", "failed": "❌"}
     df["status"] = df["status"].map(lambda s: f"{status_icons.get(s, '')} {s}")
-    df["duration_s"] = df.apply(
-        lambda r: round((r["completed_at"] - r["started_at"]).total_seconds())
-        if pd.notna(r.get("completed_at")) and pd.notna(r.get("started_at")) else None,
-        axis=1,
-    )
+    if "duration_seconds" in df.columns:
+        df["duration_s"] = df["duration_seconds"].apply(lambda v: round(v) if pd.notna(v) else None)
+    else:
+        df["duration_s"] = df.apply(
+            lambda r: round((r["completed_at"] - r["started_at"]).total_seconds())
+            if pd.notna(r.get("completed_at")) and pd.notna(r.get("started_at")) else None,
+            axis=1,
+        )
     display_cols = ["id", "status", "game_id", "depth", "worker_id", "duration_s", "retry_count", "error_message"]
     display_cols = [c for c in display_cols if c in df.columns]
     st.dataframe(
