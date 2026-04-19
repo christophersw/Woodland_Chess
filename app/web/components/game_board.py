@@ -424,13 +424,37 @@ def render_svg_game_viewer(
       const evals = points.map(p => p.displayCp);
       // Bar fill: classification color takes priority, then white/black by sign
       const clsColor = {{ blunder: '#ef4444', mistake: '#f97316', inaccuracy: '#eab308' }};
-      const baseColors = points.map(p => clsColor[p.cls] || (p.rawCp >= 0 ? '#f9fafb' : '#111111'));
+      const baseColors = points.map(p => clsColor[p.cls] || (p.rawCp >= 0 ? '#f9fafb' : '#374151'));
       const baseOpacity = evals.map(() => 0.85);
+
+      function barLineAttrs(activePly) {{
+        return {{
+          color: plies.map(p => p === activePly ? '#facc15' : '#6b7280'),
+          width: plies.map(p => p === activePly ? 2.5 : 0.5),
+        }};
+      }}
+
+      function arrowAnnotation(activePly) {{
+        const idx = plies.indexOf(activePly);
+        if (idx < 0) return [];
+        const x = evals[idx] >= 0 ? -DISPLAY_CP_CAP * 0.05 : DISPLAY_CP_CAP * 0.05;
+        return [{{
+          x, y: activePly,
+          xref: 'x', yref: 'y',
+          ax: evals[idx] >= 0 ? -48 : 48, ay: 0,
+          axref: 'x', ayref: 'y',
+          showarrow: true, arrowhead: 2, arrowsize: 1.2,
+          arrowwidth: 2, arrowcolor: '#facc15',
+          text: '', standoff: 2,
+        }},
+        {{ text: 'Stockfish', xref: 'paper', yref: 'paper',
+          x: 0, y: 1.06, showarrow: false, font: {{ size: 11, color: '#9ca3af' }} }}];
+      }}
 
       const trace = {{
         x: evals, y: plies, type: 'bar', orientation: 'h',
         marker: {{ color: baseColors.slice(), opacity: baseOpacity.slice(),
-          line: {{ color: '#9ca3af', width: 0.5 }} }},
+          line: barLineAttrs(null) }},
         text: points.map(p => p.textLabel), textposition: 'outside',
         customdata: points.map(p => [p.rawCp, p.isMate, p.hoverText, p.cls, p.san]),
         hovertemplate: 'Ply %{{y}} %{{customdata[4]}}<br>%{{customdata[2]}}%{{customdata[3] ? " — " + customdata[3] : ""}}<extra></extra>',
@@ -445,7 +469,7 @@ def render_svg_game_viewer(
         yaxis: {{ title: 'Ply', autorange: 'reversed' }},
         margin: {{ l: 50, r: 20, t: 20, b: 40 }},
         bargap: 0.12, height: {sf_height},
-        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: '#2d3f35',
         font: {{ color: '#d1d5db' }},
         annotations: [{{ text: 'Stockfish', xref: 'paper', yref: 'paper',
           x: 0, y: 1.06, showarrow: false, font: {{ size: 11, color: '#9ca3af' }} }}],
@@ -459,8 +483,11 @@ def render_svg_game_viewer(
 
       window._updateSfHighlight = function(ply) {{
         Plotly.restyle(sfDiv, {{
-          'marker.opacity': [plies.map(p => p === ply ? 1.0 : 0.85)],
+          'marker.opacity': [plies.map(p => p === ply ? 1.0 : 0.75)],
+          'marker.line.color': [barLineAttrs(ply).color],
+          'marker.line.width': [barLineAttrs(ply).width],
         }});
+        Plotly.relayout(sfDiv, {{ annotations: arrowAnnotation(ply) }});
       }};
     }})();
     </script>
