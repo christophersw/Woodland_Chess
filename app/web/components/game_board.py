@@ -21,6 +21,8 @@ def render_svg_game_viewer(
     initial_ply: int | str = "last",
     eval_data: list[dict] | None = None,
     wdl_data: list[dict] | None = None,
+    white_player: str = "White",
+    black_player: str = "Black",
 ) -> None:
     """Full-game SVG viewer with play/pause, scrubber, move list, and best-move arrows.
 
