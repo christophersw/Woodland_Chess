@@ -545,7 +545,14 @@ if analysis is None or analysis.moves.empty:
     st.error("Game analysis not found for the requested game_id.")
     st.stop()
 
-st.subheader(f"{analysis.white} vs {analysis.black} — {analysis.result}")
+def _player_label(name: str, rating: int | None) -> str:
+    return f"{name} ({rating})" if rating else name
+
+
+white_label = _player_label(analysis.white, analysis.white_rating)
+black_label = _player_label(analysis.black, analysis.black_rating)
+
+st.subheader(f"{white_label} vs {black_label} — {analysis.result}")
 details_parts = []
 if analysis.date:
     details_parts.append(analysis.date)
@@ -568,8 +575,8 @@ lc0_ready = (
 
 if lc0_ready:
     st.html(_ENGINE_CSS + _render_lc0_html(
-        white=analysis.white,
-        black=analysis.black,
+        white=white_label,
+        black=black_label,
         w_win=analysis.lc0_white_win_prob,
         w_draw=analysis.lc0_white_draw_prob,
         w_loss=analysis.lc0_white_loss_prob,
@@ -615,8 +622,8 @@ if white_accuracy is not None and black_accuracy is not None:
     w_total = _count_side_moves(analysis.moves, white_to_move=True)
     b_total = _count_side_moves(analysis.moves, white_to_move=False)
     st.html(_ENGINE_CSS + _render_stockfish_html(
-        white=analysis.white,
-        black=analysis.black,
+        white=white_label,
+        black=black_label,
         w_acc=white_accuracy,
         b_acc=black_accuracy,
         w_acpl=white_acpl,
@@ -726,6 +733,6 @@ render_svg_game_viewer(
     initial_ply="last",
     wdl_data=wdl_data,
     eval_data=eval_data,
-    white_player=analysis.white,
-    black_player=analysis.black,
+    white_player=white_label,
+    black_player=black_label,
 )

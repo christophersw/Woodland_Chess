@@ -34,6 +34,8 @@ class GameAnalysisData:
     black_mistakes: int | None = None
     black_inaccuracies: int | None = None
     engine_depth: int | None = None
+    white_rating: int | None = None
+    black_rating: int | None = None
     # Lc0 WDL data (None when not yet analyzed by Lc0)
     lc0_moves: pd.DataFrame | None = None
     lc0_white_win_prob: float | None = None
@@ -119,6 +121,8 @@ class AnalysisService:
                     black_mistakes=ga.black_mistakes,
                     black_inaccuracies=ga.black_inaccuracies,
                     engine_depth=ga.engine_depth,
+                    white_rating=db_game.white_rating,
+                    black_rating=db_game.black_rating,
                     lc0_moves=lc0_moves_df,
                     **lc0_kwargs,
                 )
@@ -152,6 +156,8 @@ class AnalysisService:
             pgn=pgn_text,
             moves=pd.DataFrame(rows),
             date=date, time_control=time_control, url=url,
+            white_rating=db_game.white_rating,
+            black_rating=db_game.black_rating,
             lc0_moves=lc0_moves_df,
             **lc0_kwargs,
         )
