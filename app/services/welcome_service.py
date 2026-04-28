@@ -76,7 +76,10 @@ class WelcomeService:
         with get_session() as session:
             event = session.execute(
                 select(SystemEvent)
-                .where(SystemEvent.event_type == event_type)
+                .where(
+                    SystemEvent.event_type == event_type,
+                    SystemEvent.status.in_(["completed", "failed"]),
+                )
                 .order_by(SystemEvent.started_at.desc())
                 .limit(1)
             ).scalar()

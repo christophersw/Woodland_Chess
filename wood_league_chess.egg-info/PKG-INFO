@@ -1,3 +1,23 @@
+Metadata-Version: 2.4
+Name: wood-league-chess
+Version: 0.1.0
+Summary: Club chess analytics MVP
+Requires-Python: <3.14,>=3.13
+Description-Content-Type: text/markdown
+Requires-Dist: streamlit>=1.44.0
+Requires-Dist: plotly>=5.20.0
+Requires-Dist: pandas>=2.2.0
+Requires-Dist: sqlalchemy>=2.0.29
+Requires-Dist: psycopg[binary]>=3.2.0
+Requires-Dist: python-chess>=1.999
+Requires-Dist: streamlit-plotly-events>=0.0.6
+Requires-Dist: passlib[bcrypt]>=1.7.4
+Requires-Dist: pydantic-settings>=2.8.0
+Requires-Dist: requests>=2.31.0
+Requires-Dist: tqdm>=4.66.0
+Requires-Dist: runpod>=1.7.0
+Requires-Dist: alembic>=1.13.0
+
 # Wood League Chess
 
 Wood League Chess is a multi-repo chess analysis system built around a Streamlit app, a shared PostgreSQL database, a Railway dispatcher, and two RunPod workers.

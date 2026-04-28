@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from html import escape
+import zoneinfo
 
 import pandas as pd
 import streamlit as st
@@ -65,18 +66,28 @@ def _is_recent(played_at: object, days: int = 7) -> bool:
     return False
 
 
-def _fmt_last_ingest(event: dict | None) -> str:
+_DEFAULT_TZ = zoneinfo.ZoneInfo("America/New_York")
+
+
+def _fmt_last_ingest(event: dict | None, tz: zoneinfo.ZoneInfo = _DEFAULT_TZ) -> str:
     """Format last ingest event for display."""
     if event is None:
         return "Never"
     completed_at = event.get("completed_at")
-    if completed_at is None:
-        return "In progress..."
-    if isinstance(completed_at, pd.Timestamp):
-        return completed_at.strftime("%b %d, %Y at %I:%M %p")
-    if isinstance(completed_at, datetime):
-        return completed_at.strftime("%b %d, %Y at %I:%M %p")
-    return str(completed_at)
+    ts = completed_at if completed_at is not None else event.get("started_at")
+    if ts is None:
+        return "Unknown"
+    if isinstance(ts, pd.Timestamp):
+        dt = ts.to_pydatetime()
+    elif isinstance(ts, datetime):
+        dt = ts
+    else:
+        return str(ts)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    dt = dt.astimezone(tz)
+    tz_abbr = dt.strftime("%Z")
+    return dt.strftime(f"%b %d, %Y at %I:%M %p {tz_abbr}")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -266,7 +277,12 @@ st.subheader("Most Recent Games")
 
 # Get last ingest event for timestamp display
 last_ingest = _service.get_last_system_event("ingest")
-last_check_time = _fmt_last_ingest(last_ingest)
+_browser_tz_str = st.context.timezone if hasattr(st, "context") and st.context.timezone else None
+try:
+    _display_tz = zoneinfo.ZoneInfo(_browser_tz_str) if _browser_tz_str else _DEFAULT_TZ
+except zoneinfo.ZoneInfoNotFoundError:
+    _display_tz = _DEFAULT_TZ
+last_check_time = _fmt_last_ingest(last_ingest, _display_tz)
 st.caption(f"The 10 most recently played games · Last checked for updates: {last_check_time}")
 
 recent_games = _service.get_most_recent_games(limit=10)
@@ -326,7 +342,7 @@ if acc_df.empty:
     st.info("No analysed games found for this period.")
 else:
     fig = player_accuracy_chart(acc_df)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 # ── ELO Trends ───────────────────────────────────────────────────────────────
 
@@ -338,7 +354,7 @@ if elo_df.empty:
     st.info("No rating data available for this period.")
 else:
     elo_fig = player_elo_chart(elo_df)
-    st.plotly_chart(elo_fig, use_container_width=True)
+    st.plotly_chart(elo_fig, width='stretch')
 
 st.divider()
 
@@ -397,7 +413,7 @@ else:
 
     _sankey_event = st.plotly_chart(
         _sankey_fig,
-        use_container_width=True,
+        width='stretch',
         on_select="rerun",
         key="opening_sankey",
     )
@@ -497,7 +513,7 @@ if not _edges_df.empty:
 
         _oa_fig = opening_wins_losses_bar(_opening_metrics_df)
         _oa_fig.update_layout(title_text=_oa_title)
-        st.plotly_chart(_oa_fig, use_container_width=True, config={"displaylogo": False})
+        st.plotly_chart(_oa_fig, width='stretch', config={"displaylogo": False})
 
 st.divider()
 

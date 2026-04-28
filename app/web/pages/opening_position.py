@@ -256,7 +256,7 @@ with pie_col:
         st.info("No game data available for this period.")
     else:
         fig_pie = opening_share_pie(share_df, opening["name"])
-        st.plotly_chart(fig_pie, use_container_width=True, config={"displaylogo": False})
+        st.plotly_chart(fig_pie, width='stretch', config={"displaylogo": False})
 
 st.divider()
 
@@ -284,7 +284,7 @@ with wdl_col:
 
 with acc_col:
     fig_acc = opening_player_accuracy_bar(stats_df, opening["name"])
-    st.plotly_chart(fig_acc, use_container_width=True, config={"displaylogo": False})
+    st.plotly_chart(fig_acc, width='stretch', config={"displaylogo": False})
 
 # ── Player stats summary cards ────────────────────────────────────────────────
 
@@ -335,7 +335,7 @@ else:
     )
     _cont_event = st.plotly_chart(
         _cont_fig,
-        use_container_width=True,
+        width='stretch',
         on_select="rerun",
         key="cont_sankey",
     )
@@ -387,7 +387,7 @@ st.subheader("How Often is This Opening Played?")
 freq_df = _svc.frequency_over_time(games_df)
 if not freq_df.empty:
     fig_freq = opening_frequency_trend(freq_df, opening["name"])
-    st.plotly_chart(fig_freq, use_container_width=True, config={"displaylogo": False})
+    st.plotly_chart(fig_freq, width='stretch', config={"displaylogo": False})
 else:
     st.info("Not enough data for a trend chart.")
 

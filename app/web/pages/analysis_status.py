@@ -307,7 +307,7 @@ for col, engine_name, depth_label in (
         st.caption(f"Queue uses engine-specific {depth_label} values in `analysis_jobs.depth`.")
 
 if not by_engine.empty:
-    st.dataframe(by_engine.sort_values(["engine", "status"]), use_container_width=True, hide_index=True)
+    st.dataframe(by_engine.sort_values(["engine", "status"]), width='stretch', hide_index=True)
 
 st.markdown("---")
 st.subheader("RunPod Endpoint Health")
@@ -396,7 +396,7 @@ else:
                     "poll_error",
                 ]
             ],
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
             column_config={
                 "id": st.column_config.NumberColumn("Job", width="small"),
@@ -446,7 +446,7 @@ else:
 
     st.dataframe(
         df[display_cols],
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         column_config={
             "id": st.column_config.NumberColumn("Job", width="small"),

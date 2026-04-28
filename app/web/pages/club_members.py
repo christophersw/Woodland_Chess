@@ -145,7 +145,7 @@ else:
 
     edited_df = st.data_editor(
         players_df,
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         num_rows="fixed",
         column_config={
@@ -196,7 +196,7 @@ else:
                     with st.form(key=f"invite_{pid}"):
                         tmp_pw = st.text_input("Temporary password", type="password", help="At least 8 characters.")
                         role = st.selectbox("Role", ["member", "admin"], index=0)
-                        if st.form_submit_button("Create Login", use_container_width=True):
+                        if st.form_submit_button("Create Login", width='stretch'):
                             try:
                                 _auth_service.create_user(email, tmp_pw, role=role)
                                 st.success(f"Login created for {email}.")
@@ -218,7 +218,7 @@ with st.form("add_member_form", clear_on_submit=True):
     with col2:
         new_display = st.text_input("Display Name", placeholder="Defaults to username if blank")
         new_email   = st.text_input("Email", placeholder="e.g. magnus@example.com")
-    add_submitted = st.form_submit_button("Add Member", type="primary", use_container_width=True)
+    add_submitted = st.form_submit_button("Add Member", type="primary", width='stretch')
 
 if add_submitted:
     err = _add_player(new_username, new_display, new_name, new_email)
