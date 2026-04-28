@@ -631,6 +631,169 @@ def welcome_opening_sankey(
     return fig
 
 
+def opening_share_pie(share_df: pd.DataFrame, opening_name: str) -> go.Figure:
+    """2-slice Du Bois pie: this opening vs all other openings.
+
+    share_df columns: slice, games
+    """
+    if share_df.empty:
+        return go.Figure()
+
+    colors = [_GP["crimson"], _GP["linen"]]
+    line_colors = [_GP["ebony"], _GP["smoke"]]
+
+    fig = go.Figure(
+        data=go.Pie(
+            labels=share_df["slice"].tolist(),
+            values=share_df["games"].tolist(),
+            hole=0.0,
+            textposition="inside",
+            textinfo="percent+label",
+            textfont=dict(family=_GP_MONO, size=11),
+            marker=dict(
+                colors=colors,
+                line=dict(color=line_colors, width=2),
+            ),
+            hovertemplate="<b>%{label}</b><br>%{value} games (%{percent})<extra></extra>",
+        )
+    )
+    fig.update_layout(**_gp_layout(
+        title=f"{opening_name} — Share of Club Games",
+        showlegend=False,
+        margin=dict(l=10, r=10, t=56, b=10),
+        height=320,
+    ))
+    return fig
+
+
+def opening_player_wdl_bar(stats_df: pd.DataFrame, opening_name: str) -> go.Figure:
+    """Grouped W/D/L bar chart per club player for a given opening.
+
+    stats_df columns: player, wins, draws, losses (from OpeningPositionService.player_stats)
+    """
+    if stats_df.empty:
+        return go.Figure()
+
+    players = stats_df["player"].tolist()
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        name="Wins",
+        x=players,
+        y=stats_df["wins"].tolist(),
+        marker_color=_GP["moss"],
+        marker_line_color=_GP["ebony"],
+        marker_line_width=1.5,
+        text=stats_df["wins"].tolist(),
+        textposition="outside",
+        textfont=dict(family=_GP_MONO, size=10, color=_GP["ebony"]),
+        hovertemplate="<b>%{x}</b><br>Wins: %{y}<extra></extra>",
+    ))
+    fig.add_trace(go.Bar(
+        name="Draws",
+        x=players,
+        y=stats_df["draws"].tolist(),
+        marker_color=_GP["steel"],
+        marker_line_color=_GP["ebony"],
+        marker_line_width=1.5,
+        text=stats_df["draws"].tolist(),
+        textposition="outside",
+        textfont=dict(family=_GP_MONO, size=10, color=_GP["ebony"]),
+        hovertemplate="<b>%{x}</b><br>Draws: %{y}<extra></extra>",
+    ))
+    fig.add_trace(go.Bar(
+        name="Losses",
+        x=players,
+        y=stats_df["losses"].tolist(),
+        marker_color=_GP["crimson"],
+        marker_line_color=_GP["ebony"],
+        marker_line_width=1.5,
+        text=stats_df["losses"].tolist(),
+        textposition="outside",
+        textfont=dict(family=_GP_MONO, size=10, color=_GP["ebony"]),
+        hovertemplate="<b>%{x}</b><br>Losses: %{y}<extra></extra>",
+    ))
+
+    fig.update_layout(**_gp_layout(
+        title=f"Results by Player — {opening_name}",
+        barmode="group",
+        xaxis=dict(title="Player"),
+        yaxis=dict(title="Games"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=10, r=10, t=72, b=10),
+        height=360,
+    ))
+    return fig
+
+
+def opening_player_accuracy_bar(stats_df: pd.DataFrame, opening_name: str) -> go.Figure:
+    """Horizontal bar chart of average accuracy per player for a given opening.
+
+    stats_df columns: player, avg_accuracy (nullable)
+    """
+    df = stats_df.dropna(subset=["avg_accuracy"]).copy()
+    if df.empty:
+        return go.Figure()
+
+    df = df.sort_values("avg_accuracy", ascending=True)
+
+    fig = go.Figure(go.Bar(
+        x=df["avg_accuracy"].tolist(),
+        y=df["player"].tolist(),
+        orientation="h",
+        marker_color=_GP["whisky"],
+        marker_line_color=_GP["ebony"],
+        marker_line_width=1.5,
+        text=[f"{v:.1f}%" for v in df["avg_accuracy"]],
+        textposition="outside",
+        textfont=dict(family=_GP_MONO, size=11, color=_GP["ebony"]),
+        hovertemplate="<b>%{y}</b><br>Avg Accuracy: %{x:.1f}%<extra></extra>",
+    ))
+    fig.update_layout(**_gp_layout(
+        title=f"Average Accuracy — {opening_name}",
+        xaxis=dict(title="Accuracy (%)", range=[0, 105]),
+        yaxis=dict(title=""),
+        margin=dict(l=10, r=60, t=56, b=10),
+        height=max(260, 60 + 50 * len(df)),
+        showlegend=False,
+    ))
+    return fig
+
+
+def opening_frequency_trend(freq_df: pd.DataFrame, opening_name: str) -> go.Figure:
+    """Per-player monthly frequency line chart for a given opening.
+
+    freq_df columns: month, player, games
+    """
+    if freq_df.empty:
+        return go.Figure()
+
+    fig = go.Figure()
+    players = sorted(freq_df["player"].unique())
+    for i, player in enumerate(players):
+        color = _GP_COLORWAY[i % len(_GP_COLORWAY)]
+        pdata = freq_df[freq_df["player"] == player].sort_values("month")
+        fig.add_trace(go.Scatter(
+            x=pdata["month"],
+            y=pdata["games"],
+            mode="lines",
+            name=player,
+            line=dict(color=color, width=3.5),
+            hovertemplate=f"<b>{player}</b><br>%{{x|%b %Y}}<br><b>%{{y}} games</b><extra></extra>",
+        ))
+
+    fig.update_layout(**_gp_layout(
+        title=f"Opening Frequency Over Time — {opening_name}",
+        xaxis=dict(title="Month"),
+        yaxis=dict(title="Games", rangemode="tozero"),
+        hovermode="x unified",
+        legend_title="Player",
+        margin=dict(l=10, r=10, t=56, b=10),
+        height=320,
+    ))
+    return fig
+
+
 def opening_wins_losses_bar(metrics_df: pd.DataFrame, top_n: int = 15) -> go.Figure:
     if metrics_df.empty:
         return go.Figure()

@@ -65,6 +65,23 @@ def _is_recent(played_at: object, days: int = 7) -> bool:
     return False
 
 
+def _fmt_last_ingest(event: dict | None) -> str:
+    """Format last ingest event for display."""
+    if event is None:
+        return "Never"
+    completed_at = event.get("completed_at")
+    if completed_at is None:
+        return "In progress..."
+    if isinstance(completed_at, pd.Timestamp):
+        return completed_at.strftime("%b %d, %Y at %I:%M %p")
+    if isinstance(completed_at, datetime):
+        return completed_at.strftime("%b %d, %Y at %I:%M %p")
+    return str(completed_at)
+
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+
 # ── Game tables ───────────────────────────────────────────────────────────────
 
 _TABLE_STYLE = """
@@ -202,10 +219,63 @@ def _acpl_table_html(df: pd.DataFrame, highlight_recent: bool = True) -> str:
     </table>"""
 
 
+def _recent_games_table_html(df: pd.DataFrame) -> str:
+    rows = []
+    for rank, (_, row) in enumerate(df.iterrows(), start=1):
+        white       = escape(str(row["white"]))
+        black       = escape(str(row["black"]))
+        opening     = escape(str(row.get("opening_name", "Unknown")))
+        opening_id  = row.get("opening_id")
+        avg_acc     = _fmt_accuracy(row.get("avg_accuracy"))
+        played      = row.get("played_at")
+        date_str    = played.strftime("%d %b %Y") if hasattr(played, "strftime") else str(played)[:10]
+        game_link   = escape(f"/game-analysis?game_id={row['game_id']}")
+        
+        # Link to opening position page if opening_id is available
+        if opening_id:
+            opening_link = escape(f"/opening-position?opening_id={opening_id}")
+        else:
+            opening_link = "/opening-position"
+        
+        rows.append(f"""<tr>
+          <td class="wc-rank">#{rank}</td>
+          <td class="wc-player">♙ {white}</td>
+          <td class="wc-player">♟ {black}</td>
+          <td><a class="wc-open" href="{opening_link}" target="_blank">{opening}</a></td>
+          <td class="wc-acc">{avg_acc}</td>
+          <td class="wc-date">{escape(date_str)}</td>
+          <td><a class="wc-open" href="{game_link}" target="_blank">Open</a></td>
+        </tr>""")
+    return _TABLE_STYLE + f"""<table class="wc-table">
+      <thead><tr>
+        <th>#</th><th>White</th><th>Black</th>
+        <th>Opening</th><th>Accuracy</th><th>Date</th><th></th>
+      </tr></thead>
+      <tbody>{"".join(rows)}</tbody>
+    </table>"""
+
+
 # ── Page ──────────────────────────────────────────────────────────────────────
 
 st.title("Woodland Chess Club")
 st.caption("Club overview — accuracy trends, best played games, and all-time records.")
+
+# ── Most Recent Games ─────────────────────────────────────────────────────────
+
+st.subheader("Most Recent Games")
+
+# Get last ingest event for timestamp display
+last_ingest = _service.get_last_system_event("ingest")
+last_check_time = _fmt_last_ingest(last_ingest)
+st.caption(f"The 10 most recently played games · Last checked for updates: {last_check_time}")
+
+recent_games = _service.get_most_recent_games(limit=10)
+if recent_games.empty:
+    st.info("No analysed games found.")
+else:
+    st.html(_recent_games_table_html(recent_games))
+
+st.divider()
 
 # ── Filters ───────────────────────────────────────────────────────────────────
 

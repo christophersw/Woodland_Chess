@@ -28,6 +28,7 @@ from app.storage.models import (
     Lc0GameAnalysis,
     MoveAnalysis,
     Player,
+    SystemEvent,
 )
 
 _SAN_CLEAN = re.compile(r"[+#!?]")
@@ -59,6 +60,38 @@ class WelcomeService:
                 select(Player.username).order_by(Player.username)
             ).scalars().all()
         return list(rows)
+
+    # ── System events ────────────────────────────────────────────────────────────
+
+    def get_last_system_event(self, event_type: str = "ingest") -> dict | None:
+        """Return the last completed system event of a given type.
+        
+        Args:
+            event_type: Type of event to query (e.g., "ingest", "stockfish", "lc0")
+        
+        Returns:
+            Dict with keys: event_type, status, started_at, completed_at, duration_seconds, details
+            or None if no event found.
+        """
+        with get_session() as session:
+            event = session.execute(
+                select(SystemEvent)
+                .where(SystemEvent.event_type == event_type)
+                .order_by(SystemEvent.started_at.desc())
+                .limit(1)
+            ).scalar()
+        
+        if event is None:
+            return None
+        
+        return {
+            "event_type": event.event_type,
+            "status": event.status,
+            "started_at": event.started_at,
+            "completed_at": event.completed_at,
+            "duration_seconds": event.duration_seconds,
+            "details": event.details,
+        }
 
     # ── ELO timeseries ──────────────────────────────────────────────────────
 
@@ -293,6 +326,59 @@ class WelcomeService:
                     "wdl_win": row.white_win_prob,
                     "wdl_draw": row.white_draw_prob,
                     "wdl_loss": row.white_loss_prob,
+                }
+                for row in rows
+            ]
+        )
+
+    # ── Most recent games ────────────────────────────────────────────────────
+
+    def get_most_recent_games(self, limit: int = 10) -> pd.DataFrame:
+        """Top N most recently played games with opening and accuracy info.
+
+        Columns: game_id, played_at, white, black, opening_name, opening_id,
+                 avg_accuracy, white_accuracy, black_accuracy
+        """
+        from app.storage.models import OpeningBook
+
+        with get_session() as session:
+            rows = session.execute(
+                select(
+                    Game.id.label("game_id"),
+                    Game.played_at,
+                    Game.white_username,
+                    Game.black_username,
+                    OpeningBook.name.label("opening_name"),
+                    OpeningBook.id.label("opening_id"),
+                    GameAnalysis.white_accuracy,
+                    GameAnalysis.black_accuracy,
+                )
+                .outerjoin(GameAnalysis, GameAnalysis.game_id == Game.id)
+                .outerjoin(OpeningBook, OpeningBook.eco == Game.eco_code)
+                .where(
+                    Game.id.in_(_sufficient_moves_subquery())
+                )
+                .order_by(Game.played_at.desc())
+                .limit(limit)
+            ).all()
+
+        if not rows:
+            return pd.DataFrame()
+
+        return pd.DataFrame(
+            [
+                {
+                    "game_id": row.game_id,
+                    "played_at": row.played_at,
+                    "white": row.white_username or "?",
+                    "black": row.black_username or "?",
+                    "opening_name": row.opening_name or "Unknown Opening",
+                    "opening_id": row.opening_id,
+                    "white_accuracy": row.white_accuracy,
+                    "black_accuracy": row.black_accuracy,
+                    "avg_accuracy": (row.white_accuracy + row.black_accuracy) / 2
+                    if row.white_accuracy is not None and row.black_accuracy is not None
+                    else None,
                 }
                 for row in rows
             ]
