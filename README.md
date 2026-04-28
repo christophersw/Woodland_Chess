@@ -1,14 +1,49 @@
 # Woodland Chess
 
-A Streamlit chess analytics app for club and personal game history, opening analysis, and engine-powered game review.
+Woodland Chess is a multi-repo chess analysis system built around a Streamlit app, a shared PostgreSQL database, a Railway dispatcher, and two RunPod workers.
 
-Documentation:
+This repository, `woodland_app`, is the user-facing web app. It renders club history, game analysis, opening pages, search, and status views from data produced by the ingest and engine-analysis pipeline.
+
+## Repos at a Glance
+
+| Repo | Purpose |
+|---|---|
+| [`woodland_app`](.) | Streamlit web app, Alembic migrations, app models, pages, and UI |
+| [`woodland_dispatchers`](../woodland_dispatchers/README.md) | Railway dispatcher for Chess.com ingest and RunPod job submission |
+| [`woodland_stockfish_runpod`](../woodland_stockfish_runpod/README.md) | RunPod Stockfish worker that writes `game_analysis` and `move_analysis` |
+| [`woodland_lc0_runpod`](../woodland_lc0_runpod/README.md) | RunPod Lc0 worker that writes `lc0_game_analysis` and `lc0_move_analysis` |
+
+## System Flow
+
+```mermaid
+flowchart LR
+  A[Chess.com API] --> B[woodland_dispatchers\nIngest sweep]
+  B --> C[(PostgreSQL)]
+  B --> D[Queue analysis_jobs]
+  D --> E[woodland_dispatchers\nSubmit Stockfish jobs]
+  D --> F[woodland_dispatchers\nSubmit Lc0 jobs]
+  E --> G[woodland_stockfish_runpod\nRunPod worker]
+  F --> H[woodland_lc0_runpod\nRunPod worker]
+  G --> C
+  H --> C
+  C --> I[woodland_app\nStreamlit UI]
+```
+
+## What the App Shows
+
+- **Welcome**: recent games, club trends, opening flow, best games, and ingest freshness
+- **Game Search**: keyword and AI-assisted search across stored games
+- **Game Analysis**: move-by-move Stockfish or Lc0 review with board, arrows, and metrics
+- **Opening Analysis / Opening Position**: opening-level performance, continuation flow, and filtered game lists
+- **Admin / Status**: analysis queue and worker visibility
+
+## Related Docs
+
 - [Database ERD](docs/database-erd.md)
-
-Pages:
-- **My History** — rating trend, recent games, opening distribution
-- **Game Search** — AI-powered and keyword search across all games
-- **Game Analysis** — move-by-move board with best-move arrows, accuracy stats, and a WDL probability chart (Lc0) or centipawn eval chart (Stockfish)
+- [ERD source](docs/erd.mmd)
+- [Dispatcher README](../woodland_dispatchers/README.md)
+- [Stockfish RunPod README](../woodland_stockfish_runpod/README.md)
+- [Lc0 RunPod README](../woodland_lc0_runpod/README.md)
 
 ---
 
@@ -52,6 +87,13 @@ Create a `.env` file in the project root (or set these in your shell / Railway d
 ```bash
 .venv/bin/python -m streamlit run streamlit_app.py
 ```
+
+## Local Development Modes
+
+- **App only**: run this repo against an already-populated database
+- **App + ingest**: run [`app.ingest.run_sync`](app/ingest/run_sync.py) manually to pull fresh games from Chess.com
+- **App + local engine workers**: use the local Stockfish / Lc0 commands below for development
+- **Full deployed flow**: use [`woodland_dispatchers`](../woodland_dispatchers/README.md) with the two RunPod worker repos
 
 ---
 

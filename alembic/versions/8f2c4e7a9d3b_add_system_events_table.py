@@ -31,42 +31,52 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "system_events",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("event_type", sa.String(length=32), nullable=False),
-        sa.Column("status", sa.String(length=16), nullable=False),
-        sa.Column("started_at", sa.DateTime(), nullable=False),
-        sa.Column("completed_at", sa.DateTime(), nullable=True),
-        sa.Column("duration_seconds", sa.Float(), nullable=True),
-        sa.Column("details", sa.Text(), nullable=True),
-        sa.Column("error_message", sa.Text(), nullable=True),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(
-        op.f("ix_system_events_event_type"),
-        "system_events",
-        ["event_type"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_system_events_status"),
-        "system_events",
-        ["status"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_system_events_started_at"),
-        "system_events",
-        ["started_at"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_system_events_completed_at"),
-        "system_events",
-        ["completed_at"],
-        unique=False,
-    )
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    if not inspector.has_table("system_events"):
+        op.create_table(
+            "system_events",
+            sa.Column("id", sa.Integer(), nullable=False),
+            sa.Column("event_type", sa.String(length=32), nullable=False),
+            sa.Column("status", sa.String(length=16), nullable=False),
+            sa.Column("started_at", sa.DateTime(), nullable=False),
+            sa.Column("completed_at", sa.DateTime(), nullable=True),
+            sa.Column("duration_seconds", sa.Float(), nullable=True),
+            sa.Column("details", sa.Text(), nullable=True),
+            sa.Column("error_message", sa.Text(), nullable=True),
+            sa.PrimaryKeyConstraint("id"),
+        )
+
+    existing_indexes = {idx["name"] for idx in inspector.get_indexes("system_events")}
+    if op.f("ix_system_events_event_type") not in existing_indexes:
+        op.create_index(
+            op.f("ix_system_events_event_type"),
+            "system_events",
+            ["event_type"],
+            unique=False,
+        )
+    if op.f("ix_system_events_status") not in existing_indexes:
+        op.create_index(
+            op.f("ix_system_events_status"),
+            "system_events",
+            ["status"],
+            unique=False,
+        )
+    if op.f("ix_system_events_started_at") not in existing_indexes:
+        op.create_index(
+            op.f("ix_system_events_started_at"),
+            "system_events",
+            ["started_at"],
+            unique=False,
+        )
+    if op.f("ix_system_events_completed_at") not in existing_indexes:
+        op.create_index(
+            op.f("ix_system_events_completed_at"),
+            "system_events",
+            ["completed_at"],
+            unique=False,
+        )
 
 
 def downgrade() -> None:
