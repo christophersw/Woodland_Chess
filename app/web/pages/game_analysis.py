@@ -532,6 +532,22 @@ def _derive_side_stats(moves_df, white_to_move: bool) -> dict[str, float | int |
 st.title("Game Analysis")
 
 game_id = st.query_params.get("game_id", "")
+
+# Support slug-based URLs: resolve slug -> game_id
+_slug = st.query_params.get("slug", "")
+if not game_id and _slug:
+    from app.storage.models import Game as _Game
+    from app.storage.database import get_session as _get_session
+    from sqlalchemy import select as _select
+    with _get_session() as _s:
+        _resolved = _s.scalar(_select(_Game.id).where(_Game.slug == _slug))
+    if _resolved:
+        game_id = _resolved
+        st.query_params["game_id"] = game_id
+    else:
+        st.error(f"No game found for slug '{_slug}'.")
+        st.stop()
+
 if not game_id and "pending_game_id" in st.session_state:
     game_id = st.session_state.pop("pending_game_id")
     st.query_params["game_id"] = game_id
@@ -563,7 +579,16 @@ if analysis.url:
     details_line += f"  [View on Chess.com]({analysis.url})"
 if details_line:
     st.caption(details_line)
-st.caption(f"Game ID: [{analysis.game_id}](/game-analysis?game_id={analysis.game_id})")
+# Show slug-based permalink if available, fall back to raw game_id
+from app.storage.models import Game as _Game
+from app.storage.database import get_session as _get_session
+from sqlalchemy import select as _select
+with _get_session() as _s:
+    _game_slug = _s.scalar(_select(_Game.slug).where(_Game.id == analysis.game_id))
+if _game_slug:
+    st.caption(f"Game: [{_game_slug}](/game-analysis?slug={_game_slug})")
+else:
+    st.caption(f"Game ID: [{analysis.game_id}](/game-analysis?game_id={analysis.game_id})")
 _render_queue_flash()
 
 # ── Lc0 WDL section ──────────────────────────────────────────────────────────

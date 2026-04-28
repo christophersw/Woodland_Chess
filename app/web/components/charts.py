@@ -631,7 +631,11 @@ def welcome_opening_sankey(
     return fig
 
 
-def opening_share_pie(share_df: pd.DataFrame, opening_name: str) -> go.Figure:
+def opening_share_pie(
+    share_df: pd.DataFrame,
+    opening_name: str,
+    scope_label: str | None = None,
+) -> go.Figure:
     """2-slice Du Bois pie: this opening vs all other openings.
 
     share_df columns: slice, games
@@ -658,7 +662,11 @@ def opening_share_pie(share_df: pd.DataFrame, opening_name: str) -> go.Figure:
         )
     )
     fig.update_layout(**_gp_layout(
-        title=f"{opening_name} — Share of Club Games",
+        title=(
+            f"{opening_name} — Share of Scoped Games"
+            if not scope_label
+            else f"{opening_name} — Share of Scoped Games ({scope_label})"
+        ),
         showlegend=False,
         margin=dict(l=10, r=10, t=56, b=10),
         height=320,
@@ -726,7 +734,11 @@ def opening_player_wdl_bar(stats_df: pd.DataFrame, opening_name: str) -> go.Figu
     return fig
 
 
-def opening_player_accuracy_bar(stats_df: pd.DataFrame, opening_name: str) -> go.Figure:
+def opening_player_accuracy_bar(
+    stats_df: pd.DataFrame,
+    opening_name: str,
+    scope_label: str | None = None,
+) -> go.Figure:
     """Horizontal bar chart of average accuracy per player for a given opening.
 
     stats_df columns: player, avg_accuracy (nullable)
@@ -750,7 +762,11 @@ def opening_player_accuracy_bar(stats_df: pd.DataFrame, opening_name: str) -> go
         hovertemplate="<b>%{y}</b><br>Avg Accuracy: %{x:.1f}%<extra></extra>",
     ))
     fig.update_layout(**_gp_layout(
-        title=f"Average Accuracy — {opening_name}",
+        title=(
+            f"Average Accuracy by Player — {opening_name}"
+            if not scope_label
+            else f"Average Accuracy by Player — {opening_name} ({scope_label})"
+        ),
         xaxis=dict(title="Accuracy (%)", range=[0, 105]),
         yaxis=dict(title=""),
         margin=dict(l=10, r=60, t=56, b=10),
@@ -760,7 +776,11 @@ def opening_player_accuracy_bar(stats_df: pd.DataFrame, opening_name: str) -> go
     return fig
 
 
-def opening_frequency_trend(freq_df: pd.DataFrame, opening_name: str) -> go.Figure:
+def opening_frequency_trend(
+    freq_df: pd.DataFrame,
+    opening_name: str,
+    scope_label: str | None = None,
+) -> go.Figure:
     """Per-player monthly frequency line chart for a given opening.
 
     freq_df columns: month, player, games
@@ -770,20 +790,31 @@ def opening_frequency_trend(freq_df: pd.DataFrame, opening_name: str) -> go.Figu
 
     fig = go.Figure()
     players = sorted(freq_df["player"].unique())
+    if "All selected games" in players:
+        players = ["All selected games"] + [p for p in players if p != "All selected games"]
     for i, player in enumerate(players):
-        color = _GP_COLORWAY[i % len(_GP_COLORWAY)]
         pdata = freq_df[freq_df["player"] == player].sort_values("month")
+        is_total = player == "All selected games"
+        color = _GP["ebony"] if is_total else _GP_COLORWAY[i % len(_GP_COLORWAY)]
         fig.add_trace(go.Scatter(
             x=pdata["month"],
             y=pdata["games"],
             mode="lines",
             name=player,
-            line=dict(color=color, width=3.5),
+            line=dict(
+                color=color,
+                width=3.8 if is_total else 3.2,
+                dash="dash" if is_total else "solid",
+            ),
             hovertemplate=f"<b>{player}</b><br>%{{x|%b %Y}}<br><b>%{{y}} games</b><extra></extra>",
         ))
 
     fig.update_layout(**_gp_layout(
-        title=f"Opening Frequency Over Time — {opening_name}",
+        title=(
+            f"Opening Frequency Over Time — {opening_name}"
+            if not scope_label
+            else f"Opening Frequency Over Time — {opening_name} ({scope_label})"
+        ),
         xaxis=dict(title="Month"),
         yaxis=dict(title="Games", rangemode="tozero"),
         hovermode="x unified",

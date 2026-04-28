@@ -88,15 +88,26 @@ def ensure_opening_book() -> None:
 # ---------------------------------------------------------------------------
 
 @lru_cache(maxsize=1)
+def _load_book_entries() -> dict[str, tuple[int, str, str]]:
+    """Return {epd: (id, eco, name)} from the opening_book table."""
+    ensure_opening_book()
+    book: dict[str, tuple[int, str, str]] = {}
+    with get_session() as session:
+        rows = session.execute(
+            select(OpeningBook.id, OpeningBook.epd, OpeningBook.eco, OpeningBook.name)
+        ).all()
+    for opening_id, epd, eco, name in rows:
+        book[epd] = (opening_id, eco, name)
+    return book
+
+
+@lru_cache(maxsize=1)
 def _load_book() -> dict[str, tuple[str, str]]:
     """Return {epd: (eco, name)} from the opening_book table."""
-    ensure_opening_book()
-    book: dict[str, tuple[str, str]] = {}
-    with get_session() as session:
-        rows = session.execute(select(OpeningBook.epd, OpeningBook.eco, OpeningBook.name)).all()
-    for epd, eco, name in rows:
-        book[epd] = (eco, name)
-    return book
+    return {
+        epd: (eco, name)
+        for epd, (_, eco, name) in _load_book_entries().items()
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +117,37 @@ def _load_book() -> dict[str, tuple[str, str]]:
 def lookup_opening(board: chess.Board) -> tuple[str, str] | None:
     """Return (eco, name) for the current board position, or None."""
     return _load_book().get(board.epd())
+
+
+def lookup_opening_entry(board: chess.Board) -> tuple[int, str, str] | None:
+    """Return (id, eco, name) for the current board position, or None."""
+    return _load_book_entries().get(board.epd())
+
+
+def matched_opening_from_pgn(
+    pgn_text: str,
+    max_ply: int = 20,
+) -> tuple[int, str, str] | None:
+    """Return the most specific opening-book entry reached in a PGN."""
+    pgn_text = str(pgn_text or "").strip()
+    if not pgn_text:
+        return None
+
+    game = chess.pgn.read_game(io.StringIO(pgn_text))
+    if game is None:
+        return None
+
+    board = game.board()
+    best: tuple[int, str, str] | None = None
+    for i, move in enumerate(game.mainline_moves(), start=1):
+        board.push(move)
+        hit = lookup_opening_entry(board)
+        if hit is not None:
+            best = hit
+        if i >= max_ply:
+            break
+
+    return best
 
 
 def opening_at_each_ply(pgn_text: str, max_ply: int = 10) -> list[tuple[str, str]]:
@@ -160,7 +202,6 @@ def backfill_lichess_openings(batch_size: int = 500) -> int:
     """
     from app.storage.models import Game
 
-    book = _load_book()
     updated = 0
 
     with get_session() as session:
@@ -174,22 +215,10 @@ def backfill_lichess_openings(batch_size: int = 500) -> int:
             if not pgn_text:
                 continue
 
-            game = chess.pgn.read_game(io.StringIO(pgn_text))
-            if game is None:
-                continue
-
-            board = game.board()
-            best: tuple[str, str] | None = None
-            for i, move in enumerate(game.mainline_moves(), start=1):
-                board.push(move)
-                hit = book.get(board.epd())
-                if hit is not None:
-                    best = hit
-                if i >= 20:
-                    break
+            best = matched_opening_from_pgn(pgn_text, max_ply=20)
 
             if best:
-                eco, name = best
+                _, eco, name = best
                 label = f"{eco} {name}".strip() if eco else name
                 session.query(Game).filter(Game.id == game_id).update(
                     {"lichess_opening": label}

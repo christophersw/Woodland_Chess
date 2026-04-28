@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -7,7 +8,7 @@ import hashlib
 import io
 
 import chess.pgn
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.config import get_settings
 from app.ingest.chesscom_client import ChessComClient
@@ -137,6 +138,10 @@ class ChessComSyncService:
         game.lichess_opening = self._lichess_opening_from_pgn(result_pgn)
         game.pgn = result_pgn
 
+        # Assign slug once on creation (not on updates, to keep URLs stable)
+        if created and game.slug is None:
+            game.slug = self._build_slug(session, white_user or "unknown", black_user or "unknown", played_at)
+
         self._upsert_participant(
             session=session,
             game_id=game_id,
@@ -189,6 +194,35 @@ class ChessComSyncService:
     def _stable_game_id(payload: dict) -> str:
         raw = f"{payload.get('url', '')}|{payload.get('end_time', '')}|{payload.get('pgn', '')[:120]}"
         return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:24]
+
+    @staticmethod
+    def _slugify(value: str) -> str:
+        """Lowercase, replace non-alphanumeric runs with hyphens, strip edge hyphens."""
+        value = value.lower()
+        value = re.sub(r"[^a-z0-9]+", "-", value)
+        return value.strip("-")
+
+    def _build_slug(self, session, white: str, black: str, played_at: datetime) -> str:
+        """Return a unique slug like 'alice-vs-bob-2026-04-28' (or '-2', '-3' suffix)."""
+        date_str = played_at.strftime("%Y-%m-%d")
+        base = f"{self._slugify(white)}-vs-{self._slugify(black)}-{date_str}"
+
+        # Count existing games with this base slug (exact or with numeric suffix)
+        existing = session.scalars(
+            select(Game.slug).where(
+                Game.slug.like(f"{base}%")
+            )
+        ).all()
+
+        if not existing:
+            return base
+
+        # Determine the next available counter
+        used = set(existing)
+        counter = 2
+        while f"{base}-{counter}" in used:
+            counter += 1
+        return f"{base}-{counter}"
 
     @staticmethod
     def _normalize_result(value: str) -> str:

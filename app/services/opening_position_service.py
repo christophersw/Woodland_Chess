@@ -20,7 +20,7 @@ import chess.pgn
 import pandas as pd
 from sqlalchemy import and_, func, select
 
-from app.services.opening_book import lookup_opening
+from app.services.opening_book import lookup_opening, lookup_opening_entry
 from app.storage.database import get_session, init_db
 from app.storage.models import (
     Game,
@@ -99,7 +99,6 @@ class OpeningPositionService:
         """
         target_epd = opening["epd"]
         ply_depth = opening["ply_depth"]
-        eco = opening["eco"]
 
         floor_date = (
             datetime.utcnow() - timedelta(days=lookback_days)
@@ -131,7 +130,6 @@ class OpeningPositionService:
                 .outerjoin(GameAnalysis, GameAnalysis.game_id == Game.id)
                 .where(
                     and_(
-                        Game.eco_code == eco,
                         Game.pgn.is_not(None),
                         Game.pgn != "",
                     )
@@ -231,16 +229,16 @@ class OpeningPositionService:
             # Accuracy: use the column matching the player's color
             acc_vals = []
             for _, r in grp.iterrows():
-                if r["color"] == "white" and r["white_accuracy"] is not None:
+                if r["color"] == "white" and pd.notna(r["white_accuracy"]):
                     acc_vals.append(r["white_accuracy"])
-                elif r["color"] == "black" and r["black_accuracy"] is not None:
+                elif r["color"] == "black" and pd.notna(r["black_accuracy"]):
                     acc_vals.append(r["black_accuracy"])
 
             acpl_vals = []
             for _, r in grp.iterrows():
-                if r["color"] == "white" and r["white_acpl"] is not None:
+                if r["color"] == "white" and pd.notna(r["white_acpl"]):
                     acpl_vals.append(r["white_acpl"])
-                elif r["color"] == "black" and r["black_acpl"] is not None:
+                elif r["color"] == "black" and pd.notna(r["black_acpl"]):
                     acpl_vals.append(r["black_acpl"])
 
             rows.append({
@@ -265,15 +263,35 @@ class OpeningPositionService:
     def opening_share(
         self,
         opening: dict,
+        games_df: pd.DataFrame,
         lookback_days: int | None = 90,
         players: list[str] | None = None,
     ) -> pd.DataFrame:
         """Return a 2-row DataFrame for the pie chart:
-          this opening vs all other openings, at the same ply depth.
+          this opening position vs all other scoped games.
 
         Columns: slice, games
         """
-        eco = opening["eco"]
+        this_opening_games = int(games_df["game_id"].nunique()) if not games_df.empty else 0
+        total_scoped_games = self._scoped_unique_game_count(
+            lookback_days=lookback_days,
+            players=players,
+        )
+
+        if total_scoped_games <= 0:
+            return pd.DataFrame(columns=["slice", "games"])
+
+        other = max(total_scoped_games - this_opening_games, 0)
+        return pd.DataFrame([
+            {"slice": "This opening position", "games": this_opening_games},
+            {"slice": "Other scoped games", "games": other},
+        ])
+
+    def _scoped_unique_game_count(
+        self,
+        lookback_days: int | None,
+        players: list[str] | None,
+    ) -> int:
         floor_date = (
             datetime.utcnow() - timedelta(days=lookback_days)
             if lookback_days is not None
@@ -282,11 +300,10 @@ class OpeningPositionService:
 
         with get_session() as session:
             stmt = (
-                select(Game.eco_code, func.count().label("n"))
+                select(func.count(func.distinct(Game.id)))
                 .join(GameParticipant, GameParticipant.game_id == Game.id)
                 .join(Player, Player.id == GameParticipant.player_id)
                 .where(Game.pgn.is_not(None), Game.pgn != "")
-                .group_by(Game.eco_code)
             )
             if floor_date is not None:
                 stmt = stmt.where(Game.played_at >= floor_date)
@@ -294,17 +311,8 @@ class OpeningPositionService:
                 stmt = stmt.where(
                     func.lower(Player.username).in_([p.lower() for p in players])
                 )
-            rows = session.execute(stmt).all()
-
-        if not rows:
-            return pd.DataFrame(columns=["slice", "games"])
-
-        this_eco = sum(r.n for r in rows if r.eco_code == eco)
-        other = sum(r.n for r in rows if r.eco_code != eco)
-        return pd.DataFrame([
-            {"slice": opening["name"], "games": this_eco},
-            {"slice": "All other openings", "games": other},
-        ])
+            value = session.scalar(stmt)
+        return int(value or 0)
 
     # ── Frequency over time ──────────────────────────────────────────────────
 
@@ -324,7 +332,15 @@ class OpeningPositionService:
             .rename(columns={"game_id": "games", "club_player": "player"})
             .sort_values(["month", "player"])
         )
-        return grouped
+
+        totals = (
+            df.groupby("month", as_index=False)["game_id"]
+            .nunique()
+            .rename(columns={"game_id": "games"})
+        )
+        totals["player"] = "All selected games"
+
+        return pd.concat([grouped, totals], ignore_index=True)
 
     # ── Continuation Sankey ──────────────────────────────────────────────────
 
@@ -348,6 +364,7 @@ class OpeningPositionService:
         target_epd = opening["epd"]
         ply_depth = opening["ply_depth"]
         opening_name = opening["name"]
+        root_label = f"Start: {opening_name}"
 
         edge_counts: dict[tuple[str, str], int] = defaultdict(int)
         node_data: dict[str, dict] = {}
@@ -404,14 +421,12 @@ class OpeningPositionService:
                 if not continuation_names:
                     continue
 
-                # Deduplicate consecutive identical names
-                deduped: list[str] = [continuation_names[0]]
-                for nm in continuation_names[1:]:
-                    if nm != deduped[-1]:
-                        deduped.append(nm)
-
-                # Full path: opening name → continuations
-                path = [opening_name] + deduped
+                # Keep nodes depth-specific so repeated variation names at
+                # different depths do not collapse into one Sankey node.
+                path = [root_label]
+                for depth, name in enumerate(continuation_names, start=1):
+                    suffix = "move" if depth == 1 else "moves"
+                    path.append(f"After +{depth} {suffix}: {name}")
 
             except Exception:
                 continue
@@ -441,10 +456,10 @@ class OpeningPositionService:
                     nd["draws"] += 1
                 else:
                     nd["losses"] += 1
-                if w_acc is not None:
+                if pd.notna(w_acc):
                     nd["white_acc_sum"] += w_acc
                     nd["white_acc_n"] += 1
-                if b_acc is not None:
+                if pd.notna(b_acc):
                     nd["black_acc_sum"] += b_acc
                     nd["black_acc_n"] += 1
                 nd["players"][player] += 1
@@ -456,9 +471,15 @@ class OpeningPositionService:
             [{"source": s, "target": t, "games": c} for (s, t), c in edge_counts.items()]
         )
         edges_df = edges_df[edges_df["games"] >= min_games].reset_index(drop=True)
+        if edges_df.empty:
+            return pd.DataFrame(), pd.DataFrame()
+
+        visible_nodes = set(edges_df["source"].tolist() + edges_df["target"].tolist())
 
         node_rows = []
         for label, nd in node_data.items():
+            if label not in visible_nodes:
+                continue
             g = nd["games"]
             node_rows.append({
                 "node": label,
@@ -481,3 +502,219 @@ class OpeningPositionService:
             })
 
         return edges_df, pd.DataFrame(node_rows)
+
+    # ── Opening tree context (lineage + continuations) ─────────────────────
+
+    def opening_tree_context(
+        self,
+        opening: dict,
+        lookback_days: int | None = 90,
+        players: list[str] | None = None,
+        max_children: int = 8,
+    ) -> dict:
+        """Return lineage + continuation stats for the selected opening.
+
+        Shape:
+          {
+            "total_scoped_games": int,
+            "selected_games": int,
+            "lineage": [
+              {"eco", "name", "label", "epd", "fen", "games", "pct_scoped"}, ...
+            ],
+            "children": [
+              {"eco", "name", "label", "epd", "fen", "games", "pct_selected"}, ...
+            ],
+          }
+        """
+        scoped_games = self._scoped_games(
+            lookback_days=lookback_days,
+            players=players,
+        )
+
+        total_scoped_games = int(scoped_games["game_id"].nunique()) if not scoped_games.empty else 0
+
+        lineage = self._lineage_for_opening(opening)
+        if not lineage:
+            lineage = [{
+                "opening_id": opening.get("id"),
+                "eco": opening.get("eco", ""),
+                "name": opening.get("name", "Unknown"),
+                "label": f"{opening.get('eco', '')} {opening.get('name', 'Unknown')}".strip(),
+                "epd": opening["epd"],
+                "fen": opening["final_fen"],
+            }]
+
+        selected_epd = opening["epd"]
+        selected_ply = int(opening["ply_depth"])
+
+        lineage_game_counts: dict[str, int] = {n["epd"]: 0 for n in lineage}
+        child_counts: dict[str, dict] = {}
+        selected_games = 0
+
+        for _, row in scoped_games.iterrows():
+            pgn_text = str(row.get("pgn") or "")
+            if not pgn_text:
+                continue
+            try:
+                game = chess.pgn.read_game(io.StringIO(pgn_text))
+            except Exception:
+                game = None
+            if game is None:
+                continue
+
+            board = game.board()
+            seen_lineage_epds: set[str] = set()
+            reached_selected = False
+            selected_child: tuple[int, str, str, str, str] | None = None
+
+            for move in game.mainline_moves():
+                board.push(move)
+                epd = board.epd()
+
+                if epd in lineage_game_counts:
+                    seen_lineage_epds.add(epd)
+
+                if epd == selected_epd:
+                    reached_selected = True
+                    continue
+
+                if reached_selected and board.ply() > selected_ply:
+                    hit = lookup_opening_entry(board)
+                    if hit is None:
+                        continue
+                    opening_id, eco, name = hit
+                    if board.epd() == selected_epd:
+                        continue
+                    selected_child = (opening_id, board.epd(), board.fen(), eco, name)
+                    break
+
+            for epd in seen_lineage_epds:
+                lineage_game_counts[epd] += 1
+
+            if reached_selected:
+                selected_games += 1
+
+            if selected_child is not None:
+                c_id, c_epd, c_fen, c_eco, c_name = selected_child
+                if c_epd not in child_counts:
+                    child_counts[c_epd] = {
+                        "opening_id": c_id,
+                        "eco": c_eco,
+                        "name": c_name,
+                        "epd": c_epd,
+                        "fen": c_fen,
+                        "games": 0,
+                    }
+                child_counts[c_epd]["games"] += 1
+
+        for n in lineage:
+            g = lineage_game_counts.get(n["epd"], 0)
+            n["games"] = int(g)
+            n["pct_scoped"] = round((g / total_scoped_games * 100.0), 1) if total_scoped_games else 0.0
+
+        children = sorted(
+            child_counts.values(),
+            key=lambda x: x["games"],
+            reverse=True,
+        )
+        if max_children > 0:
+            children = children[:max_children]
+
+        for c in children:
+            c["label"] = f"{c['eco']} {c['name']}".strip()
+            c["pct_selected"] = round((c["games"] / selected_games * 100.0), 1) if selected_games else 0.0
+
+        return {
+            "total_scoped_games": total_scoped_games,
+            "selected_games": selected_games,
+            "lineage": lineage,
+            "children": children,
+        }
+
+    def _lineage_for_opening(self, opening: dict) -> list[dict]:
+        """Build opening lineage by replaying the opening PGN and book-matching each ply."""
+        board = chess.Board()
+        nodes: list[dict] = []
+        seen_epds: set[str] = set()
+
+        for token in str(opening.get("pgn") or "").split():
+            token = token.rstrip(".")
+            if not token or token[0].isdigit():
+                continue
+            try:
+                board.push_san(token)
+            except Exception:
+                continue
+
+            hit = lookup_opening_entry(board)
+            if hit is None:
+                continue
+            opening_id, eco, name = hit
+            epd = board.epd()
+            if epd in seen_epds:
+                continue
+            seen_epds.add(epd)
+            nodes.append({
+                "opening_id": opening_id,
+                "eco": eco,
+                "name": name,
+                "label": f"{eco} {name}".strip(),
+                "epd": epd,
+                "fen": board.fen(),
+            })
+
+        if not nodes or nodes[-1]["epd"] != opening["epd"]:
+            nodes.append({
+                "opening_id": opening.get("id"),
+                "eco": opening.get("eco", ""),
+                "name": opening.get("name", "Unknown"),
+                "label": f"{opening.get('eco', '')} {opening.get('name', 'Unknown')}".strip(),
+                "epd": opening["epd"],
+                "fen": opening["final_fen"],
+            })
+
+        return nodes
+
+    def _scoped_games(
+        self,
+        lookback_days: int | None,
+        players: list[str] | None,
+    ) -> pd.DataFrame:
+        """Return unique scoped games with PGN for tree/lineage computation."""
+        floor_date = (
+            datetime.utcnow() - timedelta(days=lookback_days)
+            if lookback_days is not None
+            else None
+        )
+
+        with get_session() as session:
+            stmt = (
+                select(
+                    Game.id.label("game_id"),
+                    Game.pgn,
+                    Game.played_at,
+                )
+                .join(GameParticipant, GameParticipant.game_id == Game.id)
+                .join(Player, Player.id == GameParticipant.player_id)
+                .where(Game.pgn.is_not(None), Game.pgn != "")
+                .order_by(Game.played_at.desc())
+            )
+            if floor_date is not None:
+                stmt = stmt.where(Game.played_at >= floor_date)
+            if players:
+                stmt = stmt.where(
+                    func.lower(Player.username).in_([p.lower() for p in players])
+                )
+            rows = session.execute(stmt).all()
+
+        if not rows:
+            return pd.DataFrame(columns=["game_id", "pgn", "played_at"])
+
+        seen_ids: set[str] = set()
+        out: list[dict] = []
+        for r in rows:
+            if r.game_id in seen_ids:
+                continue
+            seen_ids.add(r.game_id)
+            out.append({"game_id": r.game_id, "pgn": r.pgn or "", "played_at": r.played_at})
+        return pd.DataFrame(out)

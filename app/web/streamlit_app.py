@@ -476,12 +476,6 @@ def main() -> None:
         url_path="welcome",
         default=True,
     )
-    opening_analysis_page = st.Page(
-        "app/web/pages/opening_analysis.py",
-        title="Opening Analysis",
-        icon="🧭",
-        url_path="opening-analysis",
-    )
     opening_position_page = st.Page(
         "app/web/pages/opening_position.py",
         title="Opening Position",
@@ -519,20 +513,20 @@ def main() -> None:
         if authenticated:
             _logout = st.Page(logout_page, title="Sign Out", icon="🚪", url_path="logout")
             pages: dict | list = {
-                "": [welcome_page, opening_analysis_page, opening_position_page, search_page],
+                "": [welcome_page, opening_position_page, search_page],
                 "Admin": [status_page, members_page, analysis_page],
                 "Account": [_logout],
             }
         else:
             _login = st.Page(login_page, title="Sign In", icon="🔑", url_path="login")
             pages = {
-                "": [welcome_page, opening_analysis_page, opening_position_page, search_page],
+                "": [welcome_page, opening_position_page, search_page],
                 "Admin": [status_page, members_page, analysis_page],
                 "Account": [_login],
             }
     else:
         pages = {
-            "": [welcome_page, opening_analysis_page, opening_position_page, search_page],
+            "": [welcome_page, opening_position_page, search_page],
             "Admin": [status_page, members_page, analysis_page],
         }
 

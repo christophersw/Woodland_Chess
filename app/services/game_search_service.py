@@ -12,6 +12,7 @@ from sqlalchemy import or_, select, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.services.history_service import HistoryFilters, HistoryService
+from app.services.opening_labels import opening_display_label
 from app.config import get_settings
 from app.storage.database import get_session, init_db
 from app.storage.models import Game, GameAnalysis, GameParticipant, Player
@@ -537,6 +538,12 @@ def keyword_game_search(query: str, limit: int = 200) -> pd.DataFrame:
             "time_control": game.time_control,
             "opening": game.opening_name,
             "lichess_opening": game.lichess_opening,
+            "opening_label": opening_display_label(
+                game.eco_code,
+                game.lichess_opening,
+                game.opening_name,
+                game.pgn,
+            ),
             "pgn": game.pgn,
             "stockfish_cp": int(summary_cp or 0),
         }

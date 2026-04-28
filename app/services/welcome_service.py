@@ -19,7 +19,8 @@ import chess.pgn
 import pandas as pd
 from sqlalchemy import and_, func, select
 
-from app.services.opening_book import lookup_opening
+from app.services.opening_book import lookup_opening, matched_opening_from_pgn
+from app.services.opening_labels import opening_display_label
 from app.storage.database import get_session, init_db
 from app.storage.models import (
     Game,
@@ -342,22 +343,22 @@ class WelcomeService:
         Columns: game_id, played_at, white, black, opening_name, opening_id,
                  avg_accuracy, white_accuracy, black_accuracy
         """
-        from app.storage.models import OpeningBook
-
         with get_session() as session:
             rows = session.execute(
                 select(
                     Game.id.label("game_id"),
+                    Game.slug,
                     Game.played_at,
                     Game.white_username,
                     Game.black_username,
-                    OpeningBook.name.label("opening_name"),
-                    OpeningBook.id.label("opening_id"),
+                    Game.eco_code,
+                    Game.opening_name,
+                    Game.lichess_opening,
+                    Game.pgn,
                     GameAnalysis.white_accuracy,
                     GameAnalysis.black_accuracy,
                 )
                 .outerjoin(GameAnalysis, GameAnalysis.game_id == Game.id)
-                .outerjoin(OpeningBook, OpeningBook.eco == Game.eco_code)
                 .where(
                     Game.id.in_(_sufficient_moves_subquery())
                 )
@@ -368,15 +369,30 @@ class WelcomeService:
         if not rows:
             return pd.DataFrame()
 
+        opening_entry_by_game_id = {
+            row.game_id: matched_opening_from_pgn(row.pgn or "", max_ply=20)
+            for row in rows
+        }
+
         return pd.DataFrame(
             [
                 {
                     "game_id": row.game_id,
+                    "slug": row.slug,
                     "played_at": row.played_at,
                     "white": row.white_username or "?",
                     "black": row.black_username or "?",
-                    "opening_name": row.opening_name or "Unknown Opening",
-                    "opening_id": row.opening_id,
+                    "opening_name": opening_display_label(
+                        row.eco_code,
+                        row.lichess_opening,
+                        row.opening_name,
+                        row.pgn,
+                    ),
+                    "opening_id": (
+                        opening_entry_by_game_id[row.game_id][0]
+                        if opening_entry_by_game_id[row.game_id] is not None
+                        else None
+                    ),
                     "white_accuracy": row.white_accuracy,
                     "black_accuracy": row.black_accuracy,
                     "avg_accuracy": (row.white_accuracy + row.black_accuracy) / 2

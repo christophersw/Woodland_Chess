@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import aliased
 
 from app.config import get_settings
+from app.services.opening_labels import opening_display_label
 from app.storage.database import get_session, init_db
 from app.storage.models import Game, GameAnalysis, GameParticipant, MoveAnalysis, Player
 
@@ -182,8 +183,8 @@ class OpeningAnalysisService:
                     "eco_code": row.eco_code or "",
                     "opening_name": row.opening_name or "",
                     "lichess_opening": row.lichess_opening or "",
-                    "opening_label": self._opening_label(row.eco_code, row.lichess_opening, row.opening_name),
-                    "opening_family": self._opening_family(row.eco_code, row.lichess_opening, row.opening_name),
+                    "opening_label": self._opening_label(row.eco_code, row.lichess_opening, row.opening_name, row.pgn),
+                    "opening_family": self._opening_family(row.eco_code, row.lichess_opening, row.opening_name, row.pgn),
                     "pgn": row.pgn or "",
                     "summary_cp": row.summary_cp,
                     "move10_cp": row.move10_cp if row.move10_cp is not None else row.summary_cp,
@@ -197,20 +198,23 @@ class OpeningAnalysisService:
         return df
 
     @staticmethod
-    def _opening_label(eco_code: str | None, lichess_opening: str | None, opening_name: str | None) -> str:
-        eco = (eco_code or "").strip()
-        lichess = (lichess_opening or "").strip()
-        opening = (opening_name or "").strip()
-
-        label = lichess or opening or "Unknown"
-        if eco and not label.startswith(eco):
-            return f"{eco} {label}"
-        return label
+    def _opening_label(
+        eco_code: str | None,
+        lichess_opening: str | None,
+        opening_name: str | None,
+        pgn_text: str | None,
+    ) -> str:
+        return opening_display_label(eco_code, lichess_opening, opening_name, pgn_text)
 
     @staticmethod
-    def _opening_family(eco_code: str | None, lichess_opening: str | None, opening_name: str | None) -> str:
+    def _opening_family(
+        eco_code: str | None,
+        lichess_opening: str | None,
+        opening_name: str | None,
+        pgn_text: str | None,
+    ) -> str:
         eco = (eco_code or "").strip().upper()
-        name = f"{lichess_opening or ''} {opening_name or ''}".lower()
+        name = opening_display_label(eco_code, lichess_opening, opening_name, pgn_text).lower()
 
         if eco.startswith(("B", "C")):
             return "King's Pawn"

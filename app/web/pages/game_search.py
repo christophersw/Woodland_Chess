@@ -201,8 +201,7 @@ def _render_results(results_df: pd.DataFrame) -> None:
             "player",
             "opponent",
             "color",
-            "lichess_opening",
-            "opening",
+            "opening_label",
             "stockfish_cp",
         ]
         display_cols = [c for c in preferred_order if c in table_df.columns]
@@ -243,7 +242,7 @@ def _render_results(results_df: pd.DataFrame) -> None:
             pgn_text = str(row.get("pgn", ""))
 
             # Show game info
-            opening = str(row.get("lichess_opening", row.get("opening", "")))
+            opening = str(row.get("opening_label") or row.get("lichess_opening") or row.get("opening") or "")
             white = str(row.get("white_username", ""))
             black = str(row.get("black_username", ""))
             result = str(row.get("result_pgn", row.get("result", "")))

@@ -33,6 +33,7 @@ class Game(Base):
     __tablename__ = "games"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    slug: Mapped[str | None] = mapped_column(String(80), nullable=True, unique=True, index=True)
     played_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     time_control: Mapped[str] = mapped_column(String(32))
     white_username: Mapped[str | None] = mapped_column(String(120), nullable=True)

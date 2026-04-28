@@ -240,7 +240,9 @@ def _recent_games_table_html(df: pd.DataFrame) -> str:
         avg_acc     = _fmt_accuracy(row.get("avg_accuracy"))
         played      = row.get("played_at")
         date_str    = played.strftime("%d %b %Y") if hasattr(played, "strftime") else str(played)[:10]
-        game_link   = escape(f"/game-analysis?game_id={row['game_id']}")
+        slug        = row.get("slug") or None
+        game_link   = escape(f"/game-analysis?slug={slug}") if slug else escape(f"/game-analysis?game_id={row['game_id']}")
+        link_label  = "Open"
         
         # Link to opening position page if opening_id is available
         if opening_id:
@@ -255,7 +257,7 @@ def _recent_games_table_html(df: pd.DataFrame) -> str:
           <td><a class="wc-open" href="{opening_link}" target="_blank">{opening}</a></td>
           <td class="wc-acc">{avg_acc}</td>
           <td class="wc-date">{escape(date_str)}</td>
-          <td><a class="wc-open" href="{game_link}" target="_blank">Open</a></td>
+          <td><a class="wc-open" href="{game_link}" target="_blank">{link_label}</a></td>
         </tr>""")
     return _TABLE_STYLE + f"""<table class="wc-table">
       <thead><tr>

@@ -57,6 +57,7 @@ def render_svg_game_viewer(
         return
 
     flipped = orientation == "black"
+    start_ply_offset = game.board().ply()
 
     # -- Build SVG frames for each position -----------------------------------
     board = game.board()
@@ -67,8 +68,13 @@ def render_svg_game_viewer(
     san_list: list[str] = []
     if not moves_df.empty:
         for _, row in moves_df.iterrows():
-            p = int(row["ply"])
-            arrow_map[p] = str(row.get("arrow_uci", "") or "")
+            # Stored analysis ply may be absolute (from FEN start) while this
+            # viewer is frame-indexed from 1 for the first displayed move.
+            p_abs = int(row["ply"])
+            p_rel = p_abs - start_ply_offset
+            if p_rel < 1:
+                continue
+            arrow_map[p_rel] = str(row.get("arrow_uci", "") or "")
             san_list.append(str(row.get("san", "")))
     else:
         for move in moves_played:
