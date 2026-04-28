@@ -90,7 +90,7 @@ class AuthService:
         key = (
             self.settings.auth_signing_key.strip()
             or self.settings.auth_bootstrap_admin_password.strip()
-            or "woodland-chess-dev-key"
+            or "wood-league-chess-dev-key"
         )
         return key.encode("utf-8")
 

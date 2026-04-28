@@ -23,7 +23,7 @@ def _normalize_database_url(database_url: str) -> str:
 def _engine():
     if settings.database_url:
         return create_engine(_normalize_database_url(settings.database_url), pool_pre_ping=True)
-    return create_engine("sqlite+pysqlite:///woodland_chess.db", pool_pre_ping=True)
+    return create_engine("sqlite+pysqlite:///wood_league_chess.db", pool_pre_ping=True)
 
 
 ENGINE = _engine()

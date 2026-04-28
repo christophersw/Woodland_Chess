@@ -46,7 +46,7 @@ def main() -> None:
 
     settings = get_settings()
 
-    parser = argparse.ArgumentParser(description="Woodland Chess — Stockfish analysis worker")
+    parser = argparse.ArgumentParser(description="Wood League Chess — Stockfish analysis worker")
     parser.add_argument("--stockfish", default=settings.stockfish_path, help="Path to Stockfish binary")
     parser.add_argument("--depth", type=int, default=settings.analysis_depth, help="Analysis depth (default 20)")
     parser.add_argument("--threads", type=int, default=settings.analysis_threads, help="Stockfish threads per game")

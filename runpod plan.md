@@ -3,7 +3,7 @@ Here is the complete design document. I've written it to be directly usable by a
 ---
 
 # RunPod Serverless Migration — Design Document
-**Project:** woodland_chess_pipeline → RunPod Serverless Worker  
+**Project:** wood_league_stockfish_runpod → RunPod Serverless Worker  
 **Date:** 2026-04-19  
 **Status:** Ready for implementation
 
@@ -74,7 +74,7 @@ job_submitter.py (Railway — lightweight, replaces run_analysis_worker.py)
 RunPod Managed Queue (internal — no code needed)
      │  RunPod pushes job to available worker
      ▼
-RunPod Serverless Worker (new repo: woodland_chess_runpod)
+RunPod Serverless Worker (new repo: wood_league_stockfish_runpod)
      │  handler.py + Stockfish SF18 AVX2
      │  Dedicated CPU, 8 threads, 2GB hash
      ▼
@@ -104,7 +104,7 @@ PostgreSQL (MoveAnalysis table — written directly by worker)
 - `Dockerfile` (Railway) — can remove Stockfish binary since Railway no longer runs analysis
 - `requirements.txt` — add `runpod` SDK to worker repo
 
-### 🆕 New (separate repo: `woodland_chess_runpod`)
+### 🆕 New (separate repo: `wood_league_stockfish_runpod`)
 - `handler.py` — RunPod worker entry point
 - `Dockerfile` — RunPod-specific container with SF18 AVX2
 - `requirements.txt` — minimal dependencies
@@ -112,12 +112,12 @@ PostgreSQL (MoveAnalysis table — written directly by worker)
 
 ---
 
-## 5. New Repo: `woodland_chess_runpod`
+## 5. New Repo: `wood_league_stockfish_runpod`
 
 ### 5.1 Directory Structure
 
 ```
-woodland_chess_runpod/
+wood_league_stockfish_runpod/
 ├── handler.py              # RunPod worker entry point
 ├── Dockerfile              # Container definition
 ├── requirements.txt        # Python dependencies
@@ -356,7 +356,7 @@ Used for local testing with `python handler.py` before deploying to RunPod. [^3]
 
 ---
 
-## 6. Modified Files in `woodland_chess_pipeline`
+## 6. Modified Files in `wood_league_stockfish_runpod`
 
 ### 6.1 `run_analysis_worker.py` — Repurposed as Job Submitter
 
@@ -506,7 +506,7 @@ In the RunPod dashboard, create a new **Serverless CPU Endpoint** with these set
 
 | Setting | Value | Reason |
 |---|---|---|
-| Container image | Your Docker Hub image | Built from `woodland_chess_runpod` |
+| Container image | Your Docker Hub image | Built from `wood_league_stockfish_runpod` |
 | CPU type | Compute Optimized | Dedicated CPU for Stockfish |
 | Min workers (Active) | `0` | Scale to zero — $0 idle cost |
 | Max workers (Flex) | `10` | Process up to 10 games in parallel |
@@ -543,7 +543,7 @@ except Exception as e:
 ## 11. Testing Locally Before Deploying
 
 ```bash
-cd woodland_chess_runpod
+cd wood_league_stockfish_runpod
 pip install -r requirements.txt
 export DATABASE_URL="postgresql://..."
 export STOCKFISH_PATH="/usr/local/bin/stockfish"
@@ -558,9 +558,9 @@ The RunPod SDK supports local testing via `test_input.json` with no RunPod accou
 
 ## 12. Deployment Steps (In Order)
 
-1. **Create `woodland_chess_runpod` repo** with the files in Section 5
+1. **Create `wood_league_stockfish_runpod` repo** with the files in Section 5
 2. **Refactor `stockfish_service.py`** to expose `analyse_game()` function (Section 5.3)
-3. **Build and push Docker image** to Docker Hub: `docker build -t yourdockerhub/woodland-chess-worker . && docker push`
+3. **Build and push Docker image** to Docker Hub: `docker build -t yourdockerhub/wood-league-chess-worker . && docker push`
 4. **Create RunPod Serverless CPU endpoint** using the image (Section 9 settings)
 5. **Test via RunPod dashboard** "Test" tab with a sample game payload
 6. **Verify** `MoveAnalysis` rows appear in PostgreSQL

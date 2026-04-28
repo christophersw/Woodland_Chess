@@ -2,13 +2,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "Woodland Chess"
+    app_name: str = "Wood League Chess"
     database_url: str = ""
     default_history_days: int = 90
     recent_games_limit: int = 20
     opening_analysis_max_rows: int = 999
     chess_com_usernames: str = ""
-    chess_com_user_agent: str = "woodland-chess/0.1 (+club analytics app)"
+    chess_com_user_agent: str = "wood-league-chess/0.1 (+club analytics app)"
     ingest_month_limit: int = 24
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-3-haiku-20240307"

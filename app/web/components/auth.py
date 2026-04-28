@@ -16,7 +16,7 @@ _USER_CACHE_KEY = "auth_user_obj"
 # this flag, a logout + rerun would re-authenticate from the still-visible
 # cookie and immediately log the user back in.
 _LOGGED_OUT_KEY = "auth_logged_out"
-_COOKIE_NAME = "woodland_auth"
+_COOKIE_NAME = "wood_league_auth"
 
 
 # ---------------------------------------------------------------------------

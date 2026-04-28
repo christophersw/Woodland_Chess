@@ -458,7 +458,7 @@ _GENTLEMAN_CSS = """
 
 
 def main() -> None:
-    st.set_page_config(page_title="Woodland Chess", page_icon="♟", layout="wide")
+  st.set_page_config(page_title="Wood League Chess", page_icon="♟", layout="wide")
     st.html(_GENTLEMAN_CSS)
     init_db()
 

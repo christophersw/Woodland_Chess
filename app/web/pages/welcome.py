@@ -257,7 +257,7 @@ def _recent_games_table_html(df: pd.DataFrame) -> str:
 
 # ── Page ──────────────────────────────────────────────────────────────────────
 
-st.title("Woodland Chess Club")
+st.title("Wood League Chess Club")
 st.caption("Club overview — accuracy trends, best played games, and all-time records.")
 
 # ── Most Recent Games ─────────────────────────────────────────────────────────
