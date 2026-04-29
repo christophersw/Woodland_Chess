@@ -14,21 +14,21 @@ from app.web.components.html_embed import render_html_iframe
 
 # ── Du Bois palette board colors ─────────────────────────────────────────────
 _BOARD_COLORS = {
-    "square light": "#F2E6D0",   # Parchment
-    "square dark":  "#4A8C62",   # Medium green (matches opening preview)
-    "margin":       "#1A1A1A",   # Ebony
-    "coord":        "#D4A843",   # Whisky
+    "square light": "#F2E6D0",  # Parchment
+    "square dark": "#4A8C62",  # Medium green (matches opening preview)
+    "margin": "#1A1A1A",  # Ebony
+    "coord": "#D4A843",  # Whisky
 }
 
 # Per-engine tiered arrow colors: best / better / good
 # Stockfish: whisky amber; Lc0: steel blue (both already in the Du Bois palette)
-_SF_ARROW_COLORS  = ["#D4A843CC", "#D4A84377", "#D4A84333"]
+_SF_ARROW_COLORS = ["#D4A843CC", "#D4A84377", "#D4A84333"]
 _LC0_ARROW_COLORS = ["#4A6E8ACC", "#4A6E8A77", "#4A6E8A33"]
+
 
 def _apply_custom_pieces(svg: str) -> str:
     """Return python-chess native SVG pieces without overriding defs."""
     return svg
-
 
 
 def render_svg_game_viewer(
@@ -101,24 +101,32 @@ def render_svg_game_viewer(
         # Best-move arrow for this ply
         arrows: list[chess.svg.Arrow] = []
 
-        def _add_arrows(tier_map: "dict[int, list[str]] | None", colors: list[str]) -> None:
+        def _add_arrows(
+            tier_map: "dict[int, list[str]] | None", colors: list[str]
+        ) -> None:
             if tier_map is None:
                 return
             # Tier maps store absolute plies; ply_i is relative to the first displayed move
             for i, uci in enumerate(tier_map.get(ply_i + start_ply_offset, [])):
                 if uci and len(uci) >= 4 and i < len(colors):
                     try:
-                        arrows.append(chess.svg.Arrow(
-                            chess.parse_square(uci[:2]),
-                            chess.parse_square(uci[2:4]),
-                            color=colors[i],
-                        ))
+                        arrows.append(
+                            chess.svg.Arrow(
+                                chess.parse_square(uci[:2]),
+                                chess.parse_square(uci[2:4]),
+                                color=colors[i],
+                            )
+                        )
                     except ValueError:
                         pass
 
         # Track best-move match for eval chart highlighting (use SF tier-1 when available)
         # Tier maps use absolute plies; arrow_map uses relative plies (already normalised above)
-        _sf_best = (sf_arrow_tiers or {}).get(ply_i + start_ply_offset, [""])[0] if sf_arrow_tiers else arrow_map.get(ply_i, "")
+        _sf_best = (
+            (sf_arrow_tiers or {}).get(ply_i + start_ply_offset, [""])[0]
+            if sf_arrow_tiers
+            else arrow_map.get(ply_i, "")
+        )
         if _sf_best:
             is_best_map[ply_i] = move.uci() == _sf_best
 
@@ -129,11 +137,13 @@ def render_svg_game_viewer(
             uci_str = arrow_map.get(ply_i, "")
             if uci_str and len(uci_str) >= 4:
                 try:
-                    arrows.append(chess.svg.Arrow(
-                        chess.parse_square(uci_str[:2]),
-                        chess.parse_square(uci_str[2:4]),
-                        color=_SF_ARROW_COLORS[0],
-                    ))
+                    arrows.append(
+                        chess.svg.Arrow(
+                            chess.parse_square(uci_str[:2]),
+                            chess.parse_square(uci_str[2:4]),
+                            color=_SF_ARROW_COLORS[0],
+                        )
+                    )
                 except ValueError:
                     pass
 
@@ -165,9 +175,7 @@ def render_svg_game_viewer(
         ply = i + 1
         if ply % 2 == 1:
             move_no = (ply + 1) // 2
-            move_spans.append(
-                f'<span class="move-num">{move_no}.</span>'
-            )
+            move_spans.append(f'<span class="move-num">{move_no}.</span>')
         move_spans.append(
             f'<span class="move" data-ply="{ply}" onclick="goTo({ply})">{san}</span>'
         )
@@ -176,12 +184,12 @@ def render_svg_game_viewer(
     # -- Serialize SVG frames as JSON -----------------------------------------
     frames_json = json.dumps(frames)
 
-    top_player    = black_player if not flipped else white_player
-    top_sym       = "♟" if not flipped else "♙"
-    top_side      = "Black" if not flipped else "White"
+    top_player = black_player if not flipped else white_player
+    top_sym = "♟" if not flipped else "♙"
+    top_side = "Black" if not flipped else "White"
     bottom_player = white_player if not flipped else black_player
-    bottom_sym    = "♙" if not flipped else "♟"
-    bottom_side   = "White" if not flipped else "Black"
+    bottom_sym = "♙" if not flipped else "♟"
+    bottom_side = "White" if not flipped else "Black"
 
     html = f"""
     <style>
@@ -430,7 +438,9 @@ def render_svg_game_viewer(
 
     # Inject the Plotly CDN once if either chart is needed
     if wdl_data or eval_data:
-        charts_html += '<script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>\n'
+        charts_html += (
+            '<script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>\n'
+        )
 
     # Add a second div for the Stockfish chart when both are present
     if wdl_data and eval_data:
@@ -475,23 +485,39 @@ def render_svg_game_viewer(
         hovertemplate: 'Black win: %{{y:.1f}}%<extra></extra>',
       }};
 
-      // Classification markers — dots along the bottom of the chart
+      // Classification markers — white dots along the bottom, black dots along the top.
+      // Odd ply = white's move; even ply = black's move.
       const clsMeta = [
         {{ cls: 'blunder',    color: '#9B3A3A', size: 10, label: 'Blunder ??'     }},
         {{ cls: 'mistake',    color: '#C4762A', size: 8,  label: 'Mistake ?'      }},
         {{ cls: 'inaccuracy', color: '#B8962E', size: 6,  label: 'Inaccuracy ?!'  }},
       ];
-      const clsTraces = clsMeta.map(m => {{
-        const pts = wdlData.filter(d => d.classification === m.cls);
-        return {{
-          x: pts.map(d => Number(d.ply)),
-          y: pts.map(() => 2),
+      // Build four trace groups per classification: white (bottom) and black (top)
+      const clsTraces = clsMeta.flatMap(m => {{
+        const whitePts = wdlData.filter(d => d.classification === m.cls && Number(d.ply) % 2 === 1);
+        const blackPts = wdlData.filter(d => d.classification === m.cls && Number(d.ply) % 2 === 0);
+        const traceWhite = {{
+          x: whitePts.map(d => Number(d.ply)),
+          y: whitePts.map(() => 2),
           name: m.label,
+          legendgroup: m.cls,
           type: 'scatter', mode: 'markers',
-          marker: {{ color: m.color, size: m.size, symbol: 'circle' }},
-          customdata: pts.map(d => d.san || ''),
-          hovertemplate: '%{{customdata}} \u2014 ' + m.label + '<extra></extra>',
+          marker: {{ color: m.color, size: m.size, symbol: 'circle', line: {{ color: '#F2E6D0', width: 1 }} }},
+          customdata: whitePts.map(d => [d.san || '', '\u2659']),
+          hovertemplate: '%{{customdata[1]}} %{{customdata[0]}} \u2014 ' + m.label + '<extra></extra>',
         }};
+        const traceBlack = {{
+          x: blackPts.map(d => Number(d.ply)),
+          y: blackPts.map(() => 98),
+          name: m.label,
+          legendgroup: m.cls,
+          showlegend: false,
+          type: 'scatter', mode: 'markers',
+          marker: {{ color: m.color, size: m.size, symbol: 'circle', line: {{ color: '#F2E6D0', width: 1 }} }},
+          customdata: blackPts.map(d => [d.san || '', '\u265f']),
+          hovertemplate: '%{{customdata[1]}} %{{customdata[0]}} \u2014 ' + m.label + '<extra></extra>',
+        }};
+        return [traceWhite, traceBlack];
       }});
 
       const wdlWhiteName = {json.dumps(white_player)};
@@ -551,12 +577,11 @@ def render_svg_game_viewer(
         eval_count = len(eval_data)
         sf_height = max(300, 210 + eval_count * 7)
         extra_height += sf_height + 20
-        eval_div_id = f'{viewer_id}-eval2' if wdl_data else f'{viewer_id}-eval'
+        eval_div_id = f"{viewer_id}-eval2" if wdl_data else f"{viewer_id}-eval"
         charts_html += f"""
     <script>
     (function() {{
       const evalData = {eval_json};
-      const isBestMap = {is_best_map_json};
       const whiteName = {json.dumps(white_player)};
       const blackName = {json.dumps(black_player)};
       const MATE_CP_BASE = 10000;
@@ -602,19 +627,20 @@ def render_svg_game_viewer(
       const evals = points.map(p => p.displayCp);
       const moveTickVals = plies.filter(p => p % 2 === 1);
       const moveTickText = moveTickVals.map(p => String(Math.ceil(p / 2)));
-      // Bar fill: Du Bois palette — classification colours, then default by side
+      // Bar fill: classification drives colour when present; side-default otherwise.
+      // All seven Stockfish categories: brilliant / great / best / excellent / inaccuracy / mistake / blunder
       const clsColor = {{
-        brilliant:  '#2C6B4A',
-        best:       '#1A3A2A',
-        great:      '#4A6554',
-        inaccuracy: '#D4A843',
-        mistake:    '#CE3A4A',
-        blunder:    '#B53541',
+        brilliant:  '#A8D4B8',  // pale sage — lightest positive
+        great:      '#76B08A',  // soft green
+        best:       '#4A8C62',  // board dark-square green
+        excellent:  '#2E6647',  // deeper green, one step below best
+        inaccuracy: '#E8BC5A',  // light gold
+        mistake:    '#D4724A',  // terracotta
+        blunder:    '#B53541',  // crimson
       }};
-      // Default: white-advantage bars → ebony (reads on parchment bg),
-      //          black-advantage bars → parchment (reads on ebony bg)
+      // Default when no classification stored: ebony on white-side, parchment on black-side
       const baseColors = points.map(p =>
-        clsColor[p.cls] || (isBestMap[p.ply] ? clsColor.best : (p.rawCp >= 0 ? '#1A1A1A' : '#F2E6D0'))
+        clsColor[p.cls] || (p.rawCp >= 0 ? '#1A1A1A' : '#F2E6D0')
       );
       const baseOpacity = evals.map(() => 1.0);
 
@@ -662,8 +688,42 @@ def render_svg_game_viewer(
         hovertemplate: 'Move %{{customdata[0]}} (%{{customdata[1]}}) %{{customdata[5]}}<br>Change: %{{customdata[2]}}<br>Eval: %{{customdata[3]}}%{{customdata[4]}}<extra></extra>',
       }};
 
+      // Classification marker dots — mirroring the WDL chart convention.
+      // White moves (odd ply) appear at the left edge (x ≈ −cap); black moves at the right edge (x ≈ +cap).
+      const sfClsMeta = [
+        {{ cls: 'blunder',    color: '#9B3A3A', size: 10, label: 'Blunder ??'    }},
+        {{ cls: 'mistake',    color: '#C4762A', size: 8,  label: 'Mistake ?'     }},
+        {{ cls: 'inaccuracy', color: '#B8962E', size: 6,  label: 'Inaccuracy ?!' }},
+      ];
+      const sfClsTraces = sfClsMeta.flatMap(m => {{
+        const whitePts = points.filter(p => p.cls === m.cls && p.ply % 2 === 1);
+        const blackPts = points.filter(p => p.cls === m.cls && p.ply % 2 === 0);
+        const tWhite = {{
+          x: whitePts.map(() => -(DISPLAY_CP_CAP * 1.08)),
+          y: whitePts.map(p => p.ply),
+          name: m.label,
+          legendgroup: 'sf-' + m.cls,
+          type: 'scatter', mode: 'markers',
+          marker: {{ color: m.color, size: m.size, symbol: 'circle', line: {{ color: '#F2E6D0', width: 1 }} }},
+          customdata: whitePts.map(p => [p.san || '', '\u2659', p.moveNumber]),
+          hovertemplate: 'Move %{{customdata[2]}} %{{customdata[1]}} %{{customdata[0]}} \u2014 ' + m.label + '<extra></extra>',
+        }};
+        const tBlack = {{
+          x: blackPts.map(() => DISPLAY_CP_CAP * 1.08),
+          y: blackPts.map(p => p.ply),
+          name: m.label,
+          legendgroup: 'sf-' + m.cls,
+          showlegend: false,
+          type: 'scatter', mode: 'markers',
+          marker: {{ color: m.color, size: m.size, symbol: 'circle', line: {{ color: '#F2E6D0', width: 1 }} }},
+          customdata: blackPts.map(p => [p.san || '', '\u265f', p.moveNumber]),
+          hovertemplate: 'Move %{{customdata[2]}} %{{customdata[1]}} %{{customdata[0]}} \u2014 ' + m.label + '<extra></extra>',
+        }};
+        return [tWhite, tBlack];
+      }});
+
       const sfDiv = document.getElementById('{eval_div_id}');
-      Plotly.newPlot(sfDiv, [trace], {{
+      Plotly.newPlot(sfDiv, [trace, ...sfClsTraces], {{
         xaxis: {{
           zeroline: true, zerolinecolor: '#1A1A1A', zerolinewidth: 2.5,
           range: [-DISPLAY_CP_CAP * 1.15, DISPLAY_CP_CAP * 1.15],
