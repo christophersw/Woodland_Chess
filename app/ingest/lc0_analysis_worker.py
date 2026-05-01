@@ -114,6 +114,9 @@ def _save_analysis(job: _ClaimedJob, result) -> None:
                     arrow_uci=mr.arrow_uci,
                     arrow_uci_2=mr.arrow_uci_2,
                     arrow_uci_3=mr.arrow_uci_3,
+                    arrow_score_1=mr.arrow_score_1,
+                    arrow_score_2=mr.arrow_score_2,
+                    arrow_score_3=mr.arrow_score_3,
                     move_win_delta=mr.move_win_delta,
                     classification=mr.classification,
                 )

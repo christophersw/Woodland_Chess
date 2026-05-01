@@ -854,29 +854,30 @@ if missing_lc0 or missing_sf:
 st.markdown("---")
 
 
-# Build per-engine tiered arrow maps: {ply: [best_uci, better_uci, good_uci]}
-def _build_sf_tiers(df) -> "dict[int, list[str]]":
-    tiers: dict[int, list[str]] = {}
+# Build per-engine tier maps:
+# {ply: [{"uci": str, "score": float|None}, ...]} (up to 3 tiers)
+def _build_sf_tiers(df) -> "dict[int, list[dict[str, object]]]":
+    tiers: dict[int, list[dict[str, object]]] = {}
     for _, r in df.iterrows():
         tier = [
-            str(r.get("arrow_uci", "") or ""),
-            str(r.get("arrow_uci_2", "") or ""),
-            str(r.get("arrow_uci_3", "") or ""),
+            {"uci": str(r.get("arrow_uci", "") or ""), "score": r.get("arrow_score_1")},
+            {"uci": str(r.get("arrow_uci_2", "") or ""), "score": r.get("arrow_score_2")},
+            {"uci": str(r.get("arrow_uci_3", "") or ""), "score": r.get("arrow_score_3")},
         ]
-        if any(tier):
+        if any(str(t.get("uci", "") or "") for t in tier):
             tiers[int(r["ply"])] = tier
     return tiers
 
 
-def _build_lc0_tiers(df) -> "dict[int, list[str]]":
-    tiers: dict[int, list[str]] = {}
+def _build_lc0_tiers(df) -> "dict[int, list[dict[str, object]]]":
+    tiers: dict[int, list[dict[str, object]]] = {}
     for _, r in df.iterrows():
         tier = [
-            str(r.get("arrow_uci", "") or ""),
-            str(r.get("arrow_uci_2", "") or ""),
-            str(r.get("arrow_uci_3", "") or ""),
+            {"uci": str(r.get("arrow_uci", "") or ""), "score": r.get("arrow_score_1")},
+            {"uci": str(r.get("arrow_uci_2", "") or ""), "score": r.get("arrow_score_2")},
+            {"uci": str(r.get("arrow_uci_3", "") or ""), "score": r.get("arrow_score_3")},
         ]
-        if any(tier):
+        if any(str(t.get("uci", "") or "") for t in tier):
             tiers[int(r["ply"])] = tier
     return tiers
 
@@ -903,8 +904,8 @@ if _has_sf or _has_lc0:
         border-radius:2px;margin-right:4px;vertical-align:middle}
     </style>
     <div class="arrow-legend">
-      <span><span class="swatch" style="background:linear-gradient(90deg,#D4A843CC,#D4A84777,#D4A84733)"></span>Stockfish: best · better · good</span>
-      <span><span class="swatch" style="background:linear-gradient(90deg,#4A6E8ACC,#4A6E8A77,#4A6E8A33)"></span>Lc0: best · better · good</span>
+      <span><span class="swatch" style="background:linear-gradient(90deg,#D4A843F0,#D4A843AA,#D4A84355)"></span>Stockfish: darker = stronger; labels show relative gain</span>
+      <span><span class="swatch" style="background:linear-gradient(90deg,#4A6E8AF0,#4A6E8AAA,#4A6E8A55)"></span>Lc0: darker = stronger; labels show relative gain</span>
     </div>""")
     _chk_col1, _chk_col2, *_ = st.columns([1, 1, 3])
     with _chk_col1:
@@ -943,6 +944,8 @@ render_svg_game_viewer(
     black_player=black_label,
     sf_arrow_tiers=board_sf_tiers,
     lc0_arrow_tiers=board_lc0_tiers,
+    sf_arrow_label_prefix="SF",
+    lc0_arrow_label_prefix="Lc0",
 )
 
 # ── Admin ─────────────────────────────────────────────────────────────────────

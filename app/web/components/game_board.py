@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import math
 from uuid import uuid4
 
 import chess
@@ -41,8 +42,10 @@ def render_svg_game_viewer(
     wdl_data: list[dict] | None = None,
     white_player: str = "White",
     black_player: str = "Black",
-    sf_arrow_tiers: "dict[int, list[str]] | None" = None,
-    lc0_arrow_tiers: "dict[int, list[str]] | None" = None,
+    sf_arrow_tiers: "dict[int, list[dict[str, object]]] | None" = None,
+    lc0_arrow_tiers: "dict[int, list[dict[str, object]]] | None" = None,
+    sf_arrow_label_prefix: str = "SF",
+    lc0_arrow_label_prefix: str = "Lc0",
 ) -> None:
     """Full-game SVG viewer with play/pause, scrubber, move list, and best-move arrows.
 
@@ -87,6 +90,7 @@ def render_svg_game_viewer(
 
     frames: list[str] = []
     is_best_map: dict[int, bool] = {}
+    arrow_labels_by_ply: dict[int, list[dict[str, object]]] = {}
 
     # Frame 0: starting position (no arrows, no lastmove)
     frames.append(
@@ -102,36 +106,105 @@ def render_svg_game_viewer(
         arrows: list[chess.svg.Arrow] = []
 
         def _add_arrows(
-            tier_map: "dict[int, list[str]] | None", colors: list[str]
+            tier_map: "dict[int, list[dict[str, object]]] | None",
+            colors: list[str],
+            engine_prefix: str,
         ) -> None:
             if tier_map is None:
                 return
-            # Tier maps store absolute plies; ply_i is relative to the first displayed move
-            for i, uci in enumerate(tier_map.get(ply_i + start_ply_offset, [])):
-                if uci and len(uci) >= 4 and i < len(colors):
+
+            tier_entries = tier_map.get(ply_i + start_ply_offset, [])
+            scores: list[float | None] = []
+            ucis: list[str] = []
+            for entry in tier_entries:
+                if isinstance(entry, dict):
+                    ucis.append(str(entry.get("uci", "") or ""))
+                    raw_score = entry.get("score")
                     try:
-                        arrows.append(
-                            chess.svg.Arrow(
-                                chess.parse_square(uci[:2]),
-                                chess.parse_square(uci[2:4]),
-                                color=colors[i],
-                            )
+                        score_f = float(raw_score) if raw_score is not None else None
+                    except (TypeError, ValueError):
+                        score_f = None
+                    scores.append(score_f)
+                else:
+                    ucis.append(str(entry or ""))
+                    scores.append(None)
+
+            base = scores[0] if scores and scores[0] is not None else None
+            max_gap = 0.0
+            if base is not None:
+                for s in scores[1:]:
+                    if s is not None:
+                        max_gap = max(max_gap, max(0.0, float(base - s)))
+
+            def _tier_alpha(i: int, s: float | None) -> int:
+                default = [220, 140, 75]
+                if i >= len(default):
+                    return 75
+                alpha = default[i]
+                if base is None or s is None:
+                    return alpha
+                gap = max(0.0, float(base - s))
+                # Normalized emphasis by relative gap; larger gap => lighter weaker lines.
+                rel = 0.0 if max_gap <= 1e-9 else min(1.0, gap / max_gap)
+                if i == 0:
+                    return 245
+                # Blend between slightly dark and faint based on relative weakness.
+                return int(max(50, min(220, round(200 - 130 * rel))))
+
+            for i, uci in enumerate(ucis):
+                if not (uci and len(uci) >= 4 and i < len(colors)):
+                    continue
+                try:
+                    rgba = colors[i]
+                    if len(rgba) == 9 and rgba.startswith("#"):
+                        rgba = rgba[:7] + f"{_tier_alpha(i, scores[i]):02X}"
+                    arrows.append(
+                        chess.svg.Arrow(
+                            chess.parse_square(uci[:2]),
+                            chess.parse_square(uci[2:4]),
+                            color=rgba,
                         )
-                    except ValueError:
-                        pass
+                    )
+                    score_txt = ""
+                    if base is not None and scores[i] is not None:
+                        # Relative gain vs this tier from mover perspective (cp / cp-equiv)
+                        gain = max(0.0, float(base - scores[i]))
+                        gain_txt = int(round(gain / 100.0)) if abs(base) > 400 else int(round(gain))
+                        score_txt = f"+{gain_txt}"
+                    elif scores[i] is not None:
+                        score_txt = f"{int(round(float(scores[i])))}"
+                    if i == 0:
+                        label = f"{engine_prefix}"
+                    else:
+                        label = f"{engine_prefix} {score_txt}" if score_txt else f"{engine_prefix}"
+                    arrow_labels_by_ply.setdefault(ply_i, []).append(
+                        {
+                            "engine": engine_prefix,
+                            "label": label,
+                            "uci": uci,
+                            "tier": i + 1,
+                        }
+                    )
+                except ValueError:
+                    pass
 
         # Track best-move match for eval chart highlighting (use SF tier-1 when available)
         # Tier maps use absolute plies; arrow_map uses relative plies (already normalised above)
-        _sf_best = (
-            (sf_arrow_tiers or {}).get(ply_i + start_ply_offset, [""])[0]
+        _sf_entry0 = (
+            ((sf_arrow_tiers or {}).get(ply_i + start_ply_offset, [{}]) or [{}])[0]
             if sf_arrow_tiers
-            else arrow_map.get(ply_i, "")
+            else {"uci": arrow_map.get(ply_i, "")}
+        )
+        _sf_best = (
+            str(_sf_entry0.get("uci", "") or "")
+            if isinstance(_sf_entry0, dict)
+            else str(_sf_entry0 or "")
         )
         if _sf_best:
             is_best_map[ply_i] = move.uci() == _sf_best
 
         if sf_arrow_tiers is not None:
-            _add_arrows(sf_arrow_tiers, _SF_ARROW_COLORS)
+            _add_arrows(sf_arrow_tiers, _SF_ARROW_COLORS, sf_arrow_label_prefix)
         else:
             # Fallback: use moves_df arrow_uci as a single-tier SF arrow
             uci_str = arrow_map.get(ply_i, "")
@@ -147,7 +220,7 @@ def render_svg_game_viewer(
                 except ValueError:
                     pass
 
-        _add_arrows(lc0_arrow_tiers, _LC0_ARROW_COLORS)
+        _add_arrows(lc0_arrow_tiers, _LC0_ARROW_COLORS, lc0_arrow_label_prefix)
 
         frames.append(
             _apply_custom_pieces(
@@ -183,6 +256,7 @@ def render_svg_game_viewer(
 
     # -- Serialize SVG frames as JSON -----------------------------------------
     frames_json = json.dumps(frames)
+    arrow_labels_json = json.dumps(arrow_labels_by_ply)
 
     top_player = black_player if not flipped else white_player
     top_sym = "♟" if not flipped else "♙"
@@ -348,6 +422,7 @@ def render_svg_game_viewer(
                    value="{start_ply}" oninput="goTo(parseInt(this.value))">
             <span class="ply-label" id="{viewer_id}-label"></span>
           </div>
+          <div class="arrow-labels" id="{viewer_id}-arrow-labels" style="font-family:monospace;font-size:11px;color:#5A5A5A;padding:0 4px 8px;min-height:18px"></div>
           <div class="move-list" id="{viewer_id}-moves">{moves_html}</div>
         </div>
         <div class="analysis-pane">
@@ -359,6 +434,7 @@ def render_svg_game_viewer(
     <script>
     (function() {{
       const frames = {frames_json};
+      const arrowLabels = {arrow_labels_json};
       const totalFrames = frames.length;
       let currentPly = {start_ply};
       let playing = false;
@@ -369,6 +445,7 @@ def render_svg_game_viewer(
       const label = document.getElementById('{viewer_id}-label');
       const playBtn = document.getElementById('{viewer_id}-playbtn');
       const movesEl = document.getElementById('{viewer_id}-moves');
+      const arrowLabelsEl = document.getElementById('{viewer_id}-arrow-labels');
       const allMoveSpans = movesEl.querySelectorAll('.move');
 
       window.currentPly = currentPly;
@@ -385,6 +462,14 @@ def render_svg_game_viewer(
         }}
         // highlight active move in list
         allMoveSpans.forEach(s => s.classList.remove('active'));
+        const plyLabels = arrowLabels[String(currentPly)] || [];
+        if (arrowLabelsEl) {
+          if (plyLabels.length) {
+            arrowLabelsEl.textContent = plyLabels.map(x => x.label).join('   ·   ');
+          } else {
+            arrowLabelsEl.textContent = '';
+          }
+        }
         if (currentPly > 0) {{
           const active = movesEl.querySelector('.move[data-ply="' + currentPly + '"]');
           if (active) {{

@@ -254,6 +254,9 @@ def _lc0_moves_from_db(move_rows: list["Lc0MoveAnalysis"]) -> pd.DataFrame:
             "arrow_uci": m.arrow_uci,
             "arrow_uci_2": m.arrow_uci_2 or "",
             "arrow_uci_3": m.arrow_uci_3 or "",
+            "arrow_score_1": m.arrow_score_1,
+            "arrow_score_2": m.arrow_score_2,
+            "arrow_score_3": m.arrow_score_3,
             "move_win_delta": m.move_win_delta,
             "classification": m.classification,
         }
@@ -274,6 +277,9 @@ def _moves_from_db(move_rows: list[MoveAnalysis]) -> pd.DataFrame:
             "arrow_uci": m.arrow_uci,
             "arrow_uci_2": m.arrow_uci_2 or "",
             "arrow_uci_3": m.arrow_uci_3 or "",
+            "arrow_score_1": m.arrow_score_1,
+            "arrow_score_2": m.arrow_score_2,
+            "arrow_score_3": m.arrow_score_3,
             "cpl": m.cpl,
             "classification": m.classification,
         }
