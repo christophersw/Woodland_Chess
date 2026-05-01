@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import os
 import time
 from collections.abc import Mapping
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -60,7 +62,9 @@ def _resolve_config_value(name: str, dotenv_values: dict[str, str]) -> str:
 def _runpod_endpoint_ids() -> dict[str, str | None]:
     dotenv_values = _load_dotenv_values()
 
-    stockfish_endpoint = _resolve_config_value("RUNPOD_STOCKFISH_ENDPOINT_ID", dotenv_values)
+    stockfish_endpoint = _resolve_config_value(
+        "RUNPOD_STOCKFISH_ENDPOINT_ID", dotenv_values
+    )
     if not stockfish_endpoint:
         stockfish_endpoint = _resolve_config_value("RUNPOD_ENDPOINT_ID", dotenv_values)
 
@@ -71,9 +75,14 @@ def _runpod_endpoint_ids() -> dict[str, str | None]:
     }
 
 
-def _fetch_runpod_health(endpoint_id: str | None) -> tuple[dict[str, int] | None, str | None]:
+def _fetch_runpod_health(
+    endpoint_id: str | None,
+) -> tuple[dict[str, int] | None, str | None]:
     if not endpoint_id:
-        return None, "Endpoint ID not configured (check RUNPOD_STOCKFISH_ENDPOINT_ID / RUNPOD_ENDPOINT_ID / RUNPOD_LC0_ENDPOINT_ID)"
+        return (
+            None,
+            "Endpoint ID not configured (check RUNPOD_STOCKFISH_ENDPOINT_ID / RUNPOD_ENDPOINT_ID / RUNPOD_LC0_ENDPOINT_ID)",
+        )
 
     dotenv_values = _load_dotenv_values()
     api_key = _resolve_config_value("RUNPOD_API_KEY", dotenv_values)
@@ -96,7 +105,9 @@ def _fetch_runpod_health(endpoint_id: str | None) -> tuple[dict[str, int] | None
         return None, f"unexpected health payload: {type(data).__name__}"
 
     jobs = data.get("jobs", {}) if isinstance(data.get("jobs"), Mapping) else {}
-    workers = data.get("workers", {}) if isinstance(data.get("workers"), Mapping) else {}
+    workers = (
+        data.get("workers", {}) if isinstance(data.get("workers"), Mapping) else {}
+    )
 
     normalized = {
         "jobs_in_queue": int(jobs.get("inQueue", 0) or 0),
@@ -119,15 +130,19 @@ def _queue_counts_by_engine() -> pd.DataFrame:
                 func.count().label("count"),
             ).group_by(AnalysisJob.engine, AnalysisJob.status)
         ).all()
-    return pd.DataFrame([r._asdict() for r in rows]) if rows else pd.DataFrame(
-        columns=["engine", "status", "count"]
+    return (
+        pd.DataFrame([r._asdict() for r in rows])
+        if rows
+        else pd.DataFrame(columns=["engine", "status", "count"])
     )
 
 
 def _queue_totals() -> dict[str, int]:
     with get_session() as s:
         rows = s.execute(
-            select(AnalysisJob.status, func.count().label("n")).group_by(AnalysisJob.status)
+            select(AnalysisJob.status, func.count().label("n")).group_by(
+                AnalysisJob.status
+            )
         ).all()
     return {r.status: int(r.n) for r in rows}
 
@@ -235,23 +250,49 @@ def _poll_runpod_job_statuses(
         }
 
         if not endpoint_id:
-            records.append({**base, "runpod_status": None, "delay_ms": None, "execution_ms": None, "poll_error": "endpoint ID not configured"})
+            records.append(
+                {
+                    **base,
+                    "runpod_status": None,
+                    "delay_ms": None,
+                    "execution_ms": None,
+                    "poll_error": "endpoint ID not configured",
+                }
+            )
             continue
         if not runpod_job_id:
-            records.append({**base, "runpod_status": None, "delay_ms": None, "execution_ms": None, "poll_error": "missing runpod_job_id"})
+            records.append(
+                {
+                    **base,
+                    "runpod_status": None,
+                    "delay_ms": None,
+                    "execution_ms": None,
+                    "poll_error": "missing runpod_job_id",
+                }
+            )
             continue
 
         try:
             payload = client.get(f"{endpoint_id}/status/{runpod_job_id}", timeout=5)
-            records.append({
-                **base,
-                "runpod_status": payload.get("status"),
-                "delay_ms": payload.get("delayTime"),
-                "execution_ms": payload.get("executionTime"),
-                "poll_error": None,
-            })
+            records.append(
+                {
+                    **base,
+                    "runpod_status": payload.get("status"),
+                    "delay_ms": payload.get("delayTime"),
+                    "execution_ms": payload.get("executionTime"),
+                    "poll_error": None,
+                }
+            )
         except Exception as exc:
-            records.append({**base, "runpod_status": None, "delay_ms": None, "execution_ms": None, "poll_error": str(exc)})
+            records.append(
+                {
+                    **base,
+                    "runpod_status": None,
+                    "delay_ms": None,
+                    "execution_ms": None,
+                    "poll_error": str(exc),
+                }
+            )
 
     return pd.DataFrame(records), None
 
@@ -304,10 +345,14 @@ for col, engine_name, depth_label in (
         m4, m5 = st.columns(2)
         m4.metric("Completed", e_completed)
         m5.metric("Failed", e_failed)
-        st.caption(f"Queue uses engine-specific {depth_label} values in `analysis_jobs.depth`.")
+        st.caption(
+            f"Queue uses engine-specific {depth_label} values in `analysis_jobs.depth`."
+        )
 
 if not by_engine.empty:
-    st.dataframe(by_engine.sort_values(["engine", "status"]), width='stretch', hide_index=True)
+    st.dataframe(
+        by_engine.sort_values(["engine", "status"]), width="stretch", hide_index=True
+    )
 
 st.markdown("---")
 st.subheader("RunPod Endpoint Health")
@@ -315,7 +360,7 @@ st.subheader("RunPod Endpoint Health")
 endpoint_ids = _runpod_endpoint_ids()
 health_cols = st.columns(2)
 
-for col, engine_name in zip(health_cols, ["stockfish", "lc0"], strict=False):
+for col, engine_name in zip(health_cols, ["stockfish", "lc0"]):
     endpoint_id = endpoint_ids[engine_name]
     health, error = _fetch_runpod_health(endpoint_id)
 
@@ -353,7 +398,9 @@ sampled_jobs = _sample_active_jobs(sample_per_engine=sample_per_engine)
 if sampled_jobs.empty:
     st.info("No submitted/running jobs with RunPod IDs to sample right now.")
 else:
-    telemetry_df, telemetry_error = _poll_runpod_job_statuses(sampled_jobs, endpoint_ids)
+    telemetry_df, telemetry_error = _poll_runpod_job_statuses(
+        sampled_jobs, endpoint_ids
+    )
     if telemetry_error:
         st.warning(telemetry_error)
     elif telemetry_df.empty:
@@ -367,11 +414,15 @@ else:
         m2.metric("Poll Errors", int(telemetry_df["poll_error"].notna().sum()))
         m3.metric(
             "Avg Queue Delay (s)",
-            f"{(completed_ok['delay_ms'].dropna().mean() / 1000):.1f}" if not completed_ok["delay_ms"].dropna().empty else "—",
+            f"{(completed_ok['delay_ms'].dropna().mean() / 1000):.1f}"
+            if not completed_ok["delay_ms"].dropna().empty
+            else "—",
         )
         m4.metric(
             "Avg Execution (s)",
-            f"{(completed_ok['execution_ms'].dropna().mean() / 1000):.1f}" if not completed_ok["execution_ms"].dropna().empty else "—",
+            f"{(completed_ok['execution_ms'].dropna().mean() / 1000):.1f}"
+            if not completed_ok["execution_ms"].dropna().empty
+            else "—",
         )
 
         display_df = telemetry_df.copy()
@@ -396,7 +447,7 @@ else:
                     "poll_error",
                 ]
             ],
-            width='stretch',
+            width="stretch",
             hide_index=True,
             column_config={
                 "id": st.column_config.NumberColumn("Job", width="small"),
@@ -405,8 +456,12 @@ else:
                 "runpod_job_id": st.column_config.TextColumn("RunPod Job ID"),
                 "local_status": st.column_config.TextColumn("DB Status"),
                 "runpod_status": st.column_config.TextColumn("RunPod Status"),
-                "delay_s": st.column_config.NumberColumn("Queue Delay (s)", width="small"),
-                "execution_s": st.column_config.NumberColumn("Execution (s)", width="small"),
+                "delay_s": st.column_config.NumberColumn(
+                    "Queue Delay (s)", width="small"
+                ),
+                "execution_s": st.column_config.NumberColumn(
+                    "Execution (s)", width="small"
+                ),
                 "poll_error": st.column_config.TextColumn("Poll Error"),
             },
         )
@@ -446,7 +501,7 @@ else:
 
     st.dataframe(
         df[display_cols],
-        width='stretch',
+        width="stretch",
         hide_index=True,
         column_config={
             "id": st.column_config.NumberColumn("Job", width="small"),

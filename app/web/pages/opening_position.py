@@ -22,15 +22,16 @@ import chess.svg
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as _components
+
 from app.services.opening_position_service import OpeningPositionService
 from app.services.welcome_service import WelcomeService
 from app.web.components.auth import require_auth
-from app.web.components.html_embed import render_html_iframe
 from app.web.components.charts import (
     opening_frequency_trend,
     opening_player_accuracy_bar,
     opening_share_pie,
 )
+from app.web.components.html_embed import render_html_iframe
 
 require_auth()
 
@@ -139,7 +140,7 @@ def _wdl_html(stats_df: "pd.DataFrame") -> str:
             f'<div class="dub-player-lbl">{escape(str(row["player"]))}</div>'
             f'<div class="dub-stack">{segs}</div>'
             f'<div class="dub-val" style="font-size:0.65rem;color:#1A1A1A">{total}</div>'
-            f'</div>'
+            f"</div>"
         )
 
     head = (
@@ -147,7 +148,7 @@ def _wdl_html(stats_df: "pd.DataFrame") -> str:
         '<div class="dub-head">'
         '<span class="dub-title">Results by Player</span>'
         '<span class="dub-meta">W / D / L</span>'
-        '</div>'
+        "</div>"
     )
     return head + "".join(rows) + "</div>"
 
@@ -167,13 +168,13 @@ def _opening_tree_html(tree_ctx: dict, opening_epd: str) -> tuple[str, int]:
         return "", 0
 
     # ── Layout constants ─────────────────────────────────────────────────────
-    NW, NH = 248, 110      # node width, height (wider/taller to fit board preview)
-    BOARD_SZ = 94          # chess board preview pixel size
-    H_GAP = 54             # horizontal gap between lineage nodes
-    V_GAP = 14             # vertical gap between child nodes
-    FORK_GAP = 72          # gap from current-node right edge to children col
-    LABEL_H = 22           # label row above nodes
-    PAD = 22               # outer padding
+    NW, NH = 248, 110  # node width, height (wider/taller to fit board preview)
+    BOARD_SZ = 94  # chess board preview pixel size
+    H_GAP = 54  # horizontal gap between lineage nodes
+    V_GAP = 14  # vertical gap between child nodes
+    FORK_GAP = 72  # gap from current-node right edge to children col
+    LABEL_H = 22  # label row above nodes
+    PAD = 22  # outer padding
 
     # ── Board preview helper ─────────────────────────────────────────────────
     def _board_img_href(fen: str | None) -> str | None:
@@ -181,7 +182,9 @@ def _opening_tree_html(tree_ctx: dict, opening_epd: str) -> tuple[str, int]:
             return None
         try:
             board = chess.Board(fen)
-            svg_str = chess.svg.board(board, size=BOARD_SZ, colors=_BOARD_COLORS, coordinates=False)
+            svg_str = chess.svg.board(
+                board, size=BOARD_SZ, colors=_BOARD_COLORS, coordinates=False
+            )
             encoded = base64.b64encode(svg_str.encode("utf-8")).decode("ascii")
             return f"data:image/svg+xml;base64,{encoded}"
         except Exception:
@@ -204,9 +207,11 @@ def _opening_tree_html(tree_ctx: dict, opening_epd: str) -> tuple[str, int]:
     canvas_w = (ch_x + NW + PAD) if n_ch > 0 else (cur_right + PAD)
 
     # ── Edge weight helpers ──────────────────────────────────────────────────
-    edge_gs = [lineage[i]["games"] for i in range(1, n_lin)] + [c["games"] for c in children]
+    edge_gs = [lineage[i]["games"] for i in range(1, n_lin)] + [
+        c["games"] for c in children
+    ]
     raw_max = max(edge_gs) if edge_gs else 0
-    max_g = raw_max if raw_max > 0 else 1   # guard against all-zero (no games in scope)
+    max_g = raw_max if raw_max > 0 else 1  # guard against all-zero (no games in scope)
 
     def _sw(g: int) -> float:
         return max(1.5, min(10.0, 1.5 + (g / max_g) * 8.5))
@@ -235,11 +240,11 @@ def _opening_tree_html(tree_ctx: dict, opening_epd: str) -> tuple[str, int]:
     # listens with st.html() and sets window.location.href freely.
     p.append(
         f'<!DOCTYPE html><html><head><meta charset="utf-8"><style>'
-        'body{{margin:0;background:#F9F3E8;overflow-x:auto;overflow-y:hidden}}'
-        '.ot-node rect{{transition:filter .12s ease}}'
-        '.ot-node:hover rect{{filter:brightness(0.88) drop-shadow(0 2px 8px rgba(26,26,26,.28))}}'
-        '.ot-node{{cursor:pointer}}'
-        '</style></head><body>'
+        "body{{margin:0;background:#F9F3E8;overflow-x:auto;overflow-y:hidden}}"
+        ".ot-node rect{{transition:filter .12s ease}}"
+        ".ot-node:hover rect{{filter:brightness(0.88) drop-shadow(0 2px 8px rgba(26,26,26,.28))}}"
+        ".ot-node{{cursor:pointer}}"
+        "</style></head><body>"
     )
     p.append(
         f'<svg width="{canvas_w:.0f}" height="{canvas_h:.0f}" '
@@ -287,7 +292,14 @@ def _opening_tree_html(tree_ctx: dict, opening_epd: str) -> tuple[str, int]:
         )
 
     # Node renderer
-    def _node(node: dict, x: float, y: float, *, is_current: bool = False, is_child: bool = False) -> None:
+    def _node(
+        node: dict,
+        x: float,
+        y: float,
+        *,
+        is_current: bool = False,
+        is_child: bool = False,
+    ) -> None:
         oid = node.get("opening_id")
         eco = str(node.get("eco") or "").upper()
         raw_name = str(node.get("name") or "Unknown")
@@ -312,10 +324,10 @@ def _opening_tree_html(tree_ctx: dict, opening_epd: str) -> tuple[str, int]:
             url = f"/opening-position?opening_id={oid}"
             onclick = f"window.parent.postMessage({{url:'{url}'}}, '*')"
             open_tag = f'<g class="ot-node" onclick="{onclick}" style="cursor:pointer">'
-            close_tag = '</g>'
+            close_tag = "</g>"
         else:
             open_tag = '<g class="ot-node">'
-            close_tag = '</g>'
+            close_tag = "</g>"
 
         # Board preview: right-aligned, vertically centred, with 1px border rect
         bx = x + NW - BOARD_SZ - 6
@@ -362,7 +374,7 @@ def _opening_tree_html(tree_ctx: dict, opening_epd: str) -> tuple[str, int]:
     for j, child in enumerate(children):
         _node(child, ch_x, ch_top + j * (NH + V_GAP), is_child=True)
 
-    p.append('</svg></body></html>')
+    p.append("</svg></body></html>")
     return "".join(p), int(canvas_h) + 6
 
 
@@ -410,7 +422,9 @@ if opening is None:
 # ── Page header ───────────────────────────────────────────────────────────────
 
 st.title(opening["name"])
-st.caption(f"{opening['eco']}  ·  {opening['ply_depth']} half-moves  ·  {opening['pgn']}")
+st.caption(
+    f"{opening['eco']}  ·  {opening['ply_depth']} half-moves  ·  {opening['pgn']}"
+)
 
 # ── Filters ───────────────────────────────────────────────────────────────────
 
@@ -486,7 +500,9 @@ with pie_col:
         st.info("No game data available for this period.")
     else:
         fig_pie = opening_share_pie(share_df, opening["name"], scope_label=scope_label)
-        st.plotly_chart(fig_pie, width='stretch', config={"displaylogo": False})
+        st.plotly_chart(
+            fig_pie, use_container_width=True, config={"displaylogo": False}
+        )
 
 st.divider()
 
@@ -518,19 +534,19 @@ else:
     # Listener injected into the main Streamlit page DOM (not sandboxed).
     # Receives postMessage from the component iframe and navigates freely.
     st.html(
-        '<script>'
+        "<script>"
         'window.addEventListener("message",function(e){'
         'if(e.data&&e.data.url&&e.data.url.startsWith("/opening-position"))'
-        'window.location.href=e.data.url;'
-        '});'
-        '</script>',
-        unsafe_allow_javascript=True,
+        "window.location.href=e.data.url;"
+        "});"
+        "</script>"
     )
     _tree_html, _tree_h = _opening_tree_html(tree_ctx, opening["epd"])
     _components.html(_tree_html, height=_tree_h + 20, scrolling=True)
     _pct_note = (
         f" ({selected_games / total_scoped_games * 100.0:.1f}% of scoped games)"
-        if total_scoped_games else ""
+        if total_scoped_games
+        else ""
     )
     st.caption(
         f"Current opening highlighted in dark green. {selected_games} scoped games reached this node{_pct_note}. "
@@ -544,10 +560,7 @@ if games_df.empty:
     st.stop()
 
 total_games = games_df["game_id"].nunique()
-st.caption(
-    f"**{total_games}** club games played through this opening "
-    f"— {scope_label}."
-)
+st.caption(f"**{total_games}** club games played through this opening — {scope_label}.")
 
 # ── Per-player stats ──────────────────────────────────────────────────────────
 
@@ -571,7 +584,9 @@ with acc_col:
             opening["name"],
             scope_label=scope_label,
         )
-        st.plotly_chart(fig_acc, width='stretch', config={"displaylogo": False})
+        st.plotly_chart(
+            fig_acc, use_container_width=True, config={"displaylogo": False}
+        )
 
 # ── Player stats summary cards ────────────────────────────────────────────────
 
@@ -580,10 +595,10 @@ if not stats_df.empty:
     for col, (_, row) in zip(card_cols, stats_df.iterrows()):
         with col:
             st.markdown(
-                f"<div style='font-family:\"DM Mono\",monospace;font-size:0.7rem;"
+                f'<div style=\'font-family:"DM Mono",monospace;font-size:0.7rem;'
                 f"letter-spacing:0.08em;text-transform:uppercase;color:#8B3A2A'>"
                 f"{escape(row['player'])}</div>"
-                f"<div style='font-family:\"EB Garamond\",Georgia,serif;font-size:1.5rem;"
+                f'<div style=\'font-family:"EB Garamond",Georgia,serif;font-size:1.5rem;'
                 f"font-weight:600;color:#1A1A1A'>{int(row['games'])} games</div>"
                 f"<div style='font-size:0.75rem;color:#4A6554'>W {row['wins']} "
                 f"· D {row['draws']} · L {row['losses']}</div>"
@@ -603,8 +618,10 @@ st.caption(
 )
 freq_df = _svc.frequency_over_time(games_df)
 if not freq_df.empty:
-    fig_freq = opening_frequency_trend(freq_df, opening["name"], scope_label=scope_label)
-    st.plotly_chart(fig_freq, width='stretch', config={"displaylogo": False})
+    fig_freq = opening_frequency_trend(
+        freq_df, opening["name"], scope_label=scope_label
+    )
+    st.plotly_chart(fig_freq, use_container_width=True, config={"displaylogo": False})
 else:
     st.info("Not enough data for a trend chart.")
 
@@ -655,6 +672,7 @@ _tbl_df = _tbl_df.sort_values("played_at", ascending=False)
 if _tbl_df.empty:
     st.info("No games match the selected filters.")
 else:
+
     def _fmt_acc(v: float | None) -> str:
         return f"{v:.1f}%" if v is not None else "—"
 
@@ -663,14 +681,26 @@ else:
 
     _rows_html = []
     for _, row in _tbl_df.iterrows():
-        date_str = row["played_at"].strftime("%d %b %Y") if hasattr(row["played_at"], "strftime") else str(row["played_at"])[:10]
+        date_str = (
+            row["played_at"].strftime("%d %b %Y")
+            if hasattr(row["played_at"], "strftime")
+            else str(row["played_at"])[:10]
+        )
         color_sym = "♙" if row["color"] == "white" else "♟"
-        opponent = row["black_username"] if row["color"] == "white" else row["white_username"]
+        opponent = (
+            row["black_username"] if row["color"] == "white" else row["white_username"]
+        )
         p_acc = _fmt_acc(
             row["white_accuracy"] if row["color"] == "white" else row["black_accuracy"]
         )
-        p_acpl = f"{row['white_acpl']:.1f}" if row["color"] == "white" and row["white_acpl"] is not None else (
-            f"{row['black_acpl']:.1f}" if row["color"] == "black" and row["black_acpl"] is not None else "—"
+        p_acpl = (
+            f"{row['white_acpl']:.1f}"
+            if row["color"] == "white" and row["white_acpl"] is not None
+            else (
+                f"{row['black_acpl']:.1f}"
+                if row["color"] == "black" and row["black_acpl"] is not None
+                else "—"
+            )
         )
         link = escape(f"/game-analysis?game_id={row['game_id']}")
         result_cls = _result_class(row["result"])
@@ -678,7 +708,7 @@ else:
             f"<tr>"
             f'<td class="op-date">{escape(date_str)}</td>'
             f'<td class="op-player">{escape(row["club_player"])}</td>'
-            f'<td>{color_sym}</td>'
+            f"<td>{color_sym}</td>"
             f'<td class="op-player">{escape(str(opponent))}</td>'
             f'<td class="{result_cls}">{escape(row["result"])}</td>'
             f'<td class="op-acc">{escape(p_acc)}</td>'

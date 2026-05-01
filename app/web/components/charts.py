@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import io
 from datetime import datetime, timedelta
 
@@ -9,31 +11,37 @@ import plotly.graph_objects as go
 # ── Du Bois Palette — After the 1900 Paris Exposition plates ─────────────────
 _GP = {
     "parchment": "#F2E6D0",  # warm cream — chart paper
-    "linen":     "#E8D5B0",  # tan — secondary backgrounds
-    "ebony":     "#1A1A1A",  # near-black — text
-    "forest":    "#1A3A2A",  # deep forest — headings, sidebar
-    "moss":      "#4A6554",  # Du Bois green — wins / positive
-    "whisky":    "#D4A843",  # ochre-gold — primary accent
-    "peat":      "#8B3A2A",  # brick-red-brown — losses / negative
-    "smoke":     "#5A5A5A",  # neutral grey
-    "gilt":      "#B8922A",  # deep gold — borders, highlights
+    "linen": "#E8D5B0",  # tan — secondary backgrounds
+    "ebony": "#1A1A1A",  # near-black — text
+    "forest": "#1A3A2A",  # deep forest — headings, sidebar
+    "moss": "#4A6554",  # Du Bois green — wins / positive
+    "whisky": "#D4A843",  # ochre-gold — primary accent
+    "peat": "#8B3A2A",  # brick-red-brown — losses / negative
+    "smoke": "#5A5A5A",  # neutral grey
+    "gilt": "#B8922A",  # deep gold — borders, highlights
     # move-quality reds — kept intentional but shifted to Du Bois crimson family
-    "crimson":   "#B53541",  # Du Bois crimson — blunder
-    "scarlet":   "#CE3A4A",  # mistake
-    "rose":      "#E07B7B",  # inaccuracy
+    "crimson": "#B53541",  # Du Bois crimson — blunder
+    "scarlet": "#CE3A4A",  # mistake
+    "rose": "#E07B7B",  # inaccuracy
     # positives
     "brilliant": "#2C6B4A",  # brilliant move
-    "steel":     "#4A6E8A",  # Du Bois steel blue — accent/draw
+    "steel": "#4A6E8A",  # Du Bois steel blue — accent/draw
 }
 
-_GP_FONT  = "EB Garamond, Georgia, serif"
-_GP_MONO  = "DM Mono, Courier New, monospace"
+_GP_FONT = "EB Garamond, Georgia, serif"
+_GP_MONO = "DM Mono, Courier New, monospace"
 _GP_TITLE = "Playfair Display SC, Cormorant Garamond, Georgia, serif"
 
 # Du Bois colorway: crimson → gold → green → steel blue → brick → pink → ochre → teal
 _GP_COLORWAY = [
-    "#B53541", "#D4A843", "#4A6554", "#4A6E8A",
-    "#8B3A2A", "#E07B7B", "#C4933F", "#2C6B4A",
+    "#B53541",
+    "#D4A843",
+    "#4A6554",
+    "#4A6E8A",
+    "#8B3A2A",
+    "#E07B7B",
+    "#C4933F",
+    "#2C6B4A",
 ]
 
 
@@ -92,14 +100,18 @@ def elo_trend_chart(df: pd.DataFrame, selected_player: str):
     )
     fig.update_traces(opacity=0.35)
     fig.for_each_trace(
-        lambda trace: trace.update(opacity=1.0, line=dict(width=3.5))
-        if trace.name == selected_player
-        else None
+        lambda trace: (
+            trace.update(opacity=1.0, line=dict(width=3.5))
+            if trace.name == selected_player
+            else None
+        )
     )
-    fig.update_layout(**_gp_layout(
-        legend_title="Player",
-        margin=dict(l=20, r=20, t=56, b=20),
-    ))
+    fig.update_layout(
+        **_gp_layout(
+            legend_title="Player",
+            margin=dict(l=20, r=20, t=56, b=20),
+        )
+    )
     return fig
 
 
@@ -129,21 +141,38 @@ def eval_timeline_chart(df: pd.DataFrame, selected_ply: int | None = None):
             _GP["whisky"] if int(p) != selected_ply else _GP["gilt"]
             for p in df["ply"].tolist()
         ]
-        fig.update_traces(marker_color=colors, marker_line_color=_GP["ebony"], marker_line_width=1)
+        fig.update_traces(
+            marker_color=colors, marker_line_color=_GP["ebony"], marker_line_width=1
+        )
     else:
-        fig.update_traces(marker_color=_GP["whisky"], marker_line_color=_GP["ebony"], marker_line_width=1)
+        fig.update_traces(
+            marker_color=_GP["whisky"],
+            marker_line_color=_GP["ebony"],
+            marker_line_width=1,
+        )
 
     # Split background: warm cream above zero (white advantage), near-black below (black advantage)
-    fig.add_hrect(y0=0, y1=2500,  fillcolor=_GP["parchment"], opacity=1.0, layer="below", line_width=0)
-    fig.add_hrect(y0=-2500, y1=0, fillcolor="#1A1A1A", opacity=1.0, layer="below", line_width=0)
+    fig.add_hrect(
+        y0=0,
+        y1=2500,
+        fillcolor=_GP["parchment"],
+        opacity=1.0,
+        layer="below",
+        line_width=0,
+    )
+    fig.add_hrect(
+        y0=-2500, y1=0, fillcolor="#1A1A1A", opacity=1.0, layer="below", line_width=0
+    )
 
     fig.add_hline(y=0, line_dash="dot", line_color=_GP["smoke"])
-    fig.update_layout(**_gp_layout(
-        plot_bgcolor="rgba(0,0,0,0)",
-        yaxis=dict(title="Centipawns"),
-        xaxis=dict(title="Ply"),
-        clickmode="event+select",
-    ))
+    fig.update_layout(
+        **_gp_layout(
+            plot_bgcolor="rgba(0,0,0,0)",
+            yaxis=dict(title="Centipawns"),
+            xaxis=dict(title="Ply"),
+            clickmode="event+select",
+        )
+    )
     return fig
 
 
@@ -197,7 +226,7 @@ def opening_starburst_chart(df: pd.DataFrame, depth: int = 5):
     for plies, lichess in game_data:
         for d in range(1, min(len(plies), depth) + 1):
             nid = "/".join(plies[:d])
-            pid = "/".join(plies[:d - 1]) if d > 1 else ""
+            pid = "/".join(plies[: d - 1]) if d > 1 else ""
             if nid not in nodes:
                 nodes[nid] = {
                     "label": plies[d - 1],
@@ -239,24 +268,30 @@ def opening_starburst_chart(df: pd.DataFrame, depth: int = 5):
         hovertexts.append(name or "")
         customdata_arr.append(name or "")
 
-    fig = go.Figure(go.Sunburst(
-        ids=ids,
-        labels=labels_arr,
-        parents=parents_arr,
-        values=values_arr,
-        text=texts,
-        hovertext=hovertexts,
-        customdata=customdata_arr,
-        branchvalues="total",
-        textinfo="label+text+percent parent",
-        hovertemplate="<b>%{label}</b><br>Games: %{value}<br>%{hovertext}<extra></extra>",
-        insidetextorientation="auto",
-        marker=dict(colors=_GP_COLORWAY * 20, line=dict(color=_GP["ebony"], width=2)),
-    ))
-    fig.update_layout(**_gp_layout(
-        title=f"Opening Star-burst (First {depth} Plies)",
-        margin=dict(l=10, r=10, t=56, b=10),
-    ))
+    fig = go.Figure(
+        go.Sunburst(
+            ids=ids,
+            labels=labels_arr,
+            parents=parents_arr,
+            values=values_arr,
+            text=texts,
+            hovertext=hovertexts,
+            customdata=customdata_arr,
+            branchvalues="total",
+            textinfo="label+text+percent parent",
+            hovertemplate="<b>%{label}</b><br>Games: %{value}<br>%{hovertext}<extra></extra>",
+            insidetextorientation="auto",
+            marker=dict(
+                colors=_GP_COLORWAY * 20, line=dict(color=_GP["ebony"], width=2)
+            ),
+        )
+    )
+    fig.update_layout(
+        **_gp_layout(
+            title=f"Opening Star-burst (First {depth} Plies)",
+            margin=dict(l=10, r=10, t=56, b=10),
+        )
+    )
     return fig
 
 
@@ -275,10 +310,12 @@ def opening_frequency_bar(df: pd.DataFrame):
         color_discrete_sequence=[_GP["whisky"]],
     )
     fig.update_traces(marker_line_color=_GP["ebony"], marker_line_width=1.5)
-    fig.update_layout(**_gp_layout(
-        yaxis=dict(categoryorder="total ascending"),
-        margin=dict(l=10, r=10, t=56, b=10),
-    ))
+    fig.update_layout(
+        **_gp_layout(
+            yaxis=dict(categoryorder="total ascending"),
+            margin=dict(l=10, r=10, t=56, b=10),
+        )
+    )
     return fig
 
 
@@ -301,17 +338,19 @@ def opening_wdl_stacked(metrics_df: pd.DataFrame):
         title="Win / Draw / Loss by Opening",
         labels={"opening_label": "Opening", "count": "Games", "outcome": "Outcome"},
         color_discrete_map={
-            "wins":   _GP["moss"],
-            "draws":  _GP["steel"],
+            "wins": _GP["moss"],
+            "draws": _GP["steel"],
             "losses": _GP["crimson"],
         },
     )
     fig.update_traces(marker_line_color=_GP["ebony"], marker_line_width=1.5)
-    fig.update_layout(**_gp_layout(
-        barmode="stack",
-        xaxis=dict(tickangle=-35),
-        margin=dict(l=10, r=10, t=56, b=10),
-    ))
+    fig.update_layout(
+        **_gp_layout(
+            barmode="stack",
+            xaxis=dict(tickangle=-35),
+            margin=dict(l=10, r=10, t=56, b=10),
+        )
+    )
     return fig
 
 
@@ -360,9 +399,20 @@ def opening_bubble(metrics_df: pd.DataFrame):
         color="wins",
         hover_name="opening_label",
         custom_data=["opening_label"],
-        hover_data={"wins": True, "draw_pct": True, "loss_pct": True, "avg_game_length": True, "avg_move10_cp": True},
+        hover_data={
+            "wins": True,
+            "draw_pct": True,
+            "loss_pct": True,
+            "avg_game_length": True,
+            "avg_move10_cp": True,
+        },
         title="Opening Bubble Map (Frequency vs Win Rate)",
-        labels={"games": "Frequency", "win_pct": "Win %", "wins": "Total Wins", "opening_label": "Opening"},
+        labels={
+            "games": "Frequency",
+            "win_pct": "Win %",
+            "wins": "Total Wins",
+            "opening_label": "Opening",
+        },
         size_max=45,
         color_continuous_scale=[
             [0.0, _GP["peat"]],
@@ -371,10 +421,12 @@ def opening_bubble(metrics_df: pd.DataFrame):
         ],
     )
     fig.update_traces(marker_line_color=_GP["ebony"], marker_line_width=1.5)
-    fig.update_layout(**_gp_layout(
-        showlegend=False,
-        margin=dict(l=10, r=10, t=56, b=10),
-    ))
+    fig.update_layout(
+        **_gp_layout(
+            showlegend=False,
+            margin=dict(l=10, r=10, t=56, b=10),
+        )
+    )
     return fig
 
 
@@ -416,12 +468,14 @@ def opening_timeline_heatmap(timeline_df: pd.DataFrame, title: str):
             hovertemplate=f"Opening: %{{y}}<br>{bucket_label}: %{{x}}<br>Games: %{{z}}<extra></extra>",
         )
     )
-    fig.update_layout(**_gp_layout(
-        title=title,
-        xaxis=dict(title=bucket_label),
-        yaxis=dict(title="Opening"),
-        margin=dict(l=10, r=10, t=56, b=10),
-    ))
+    fig.update_layout(
+        **_gp_layout(
+            title=title,
+            xaxis=dict(title=bucket_label),
+            yaxis=dict(title="Opening"),
+            margin=dict(l=10, r=10, t=56, b=10),
+        )
+    )
     return fig
 
 
@@ -438,30 +492,34 @@ def player_fingerprint_radar(df: pd.DataFrame):
             fill="toself",
             name="Opening Fingerprint",
             line=dict(color=_GP["crimson"], width=3.5),
-            marker=dict(size=8, color=_GP["whisky"], line=dict(color=_GP["ebony"], width=1.5)),
+            marker=dict(
+                size=8, color=_GP["whisky"], line=dict(color=_GP["ebony"], width=1.5)
+            ),
             fillcolor="rgba(181,53,65,0.15)",
         )
     )
-    fig.update_layout(**_gp_layout(
-        title="Player Opening Fingerprint",
-        polar=dict(
-            bgcolor="rgba(245,237,216,0.6)",
-            radialaxis=dict(
-                visible=True,
-                range=[0, 100],
-                gridcolor=_GP["linen"],
-                linecolor=_GP["smoke"],
-                tickfont=dict(family=_GP_MONO, color=_GP["peat"], size=10),
+    fig.update_layout(
+        **_gp_layout(
+            title="Player Opening Fingerprint",
+            polar=dict(
+                bgcolor="rgba(245,237,216,0.6)",
+                radialaxis=dict(
+                    visible=True,
+                    range=[0, 100],
+                    gridcolor=_GP["linen"],
+                    linecolor=_GP["smoke"],
+                    tickfont=dict(family=_GP_MONO, color=_GP["peat"], size=10),
+                ),
+                angularaxis=dict(
+                    gridcolor=_GP["linen"],
+                    linecolor=_GP["smoke"],
+                    tickfont=dict(family=_GP_FONT, color=_GP["ebony"], size=12),
+                ),
             ),
-            angularaxis=dict(
-                gridcolor=_GP["linen"],
-                linecolor=_GP["smoke"],
-                tickfont=dict(family=_GP_FONT, color=_GP["ebony"], size=12),
-            ),
-        ),
-        showlegend=False,
-        margin=dict(l=10, r=10, t=56, b=10),
-    ))
+            showlegend=False,
+            margin=dict(l=10, r=10, t=56, b=10),
+        )
+    )
     return fig
 
 
@@ -469,7 +527,9 @@ def opening_flow_sankey(flow_df: pd.DataFrame):
     if flow_df.empty:
         return go.Figure()
 
-    labels = list(dict.fromkeys(flow_df["source"].tolist() + flow_df["target"].tolist()))
+    labels = list(
+        dict.fromkeys(flow_df["source"].tolist() + flow_df["target"].tolist())
+    )
     idx_map = {label: i for i, label in enumerate(labels)}
 
     fig = go.Figure(
@@ -491,10 +551,12 @@ def opening_flow_sankey(flow_df: pd.DataFrame):
             )
         ]
     )
-    fig.update_layout(**_gp_layout(
-        title="Opening-to-Opening Flow",
-        margin=dict(l=10, r=10, t=56, b=10),
-    ))
+    fig.update_layout(
+        **_gp_layout(
+            title="Opening-to-Opening Flow",
+            margin=dict(l=10, r=10, t=56, b=10),
+        )
+    )
     return fig
 
 
@@ -517,9 +579,9 @@ def welcome_opening_sankey(
     if edges_df.empty:
         return go.Figure()
 
-    labels: list[str] = list(dict.fromkeys(
-        edges_df["source"].tolist() + edges_df["target"].tolist()
-    ))
+    labels: list[str] = list(
+        dict.fromkeys(edges_df["source"].tolist() + edges_df["target"].tolist())
+    )
     idx_map = {label: i for i, label in enumerate(labels)}
 
     stats_lookup: dict[str, dict] = {}
@@ -552,8 +614,7 @@ def welcome_opening_sankey(
                 parts.append(f"B {ba:.0f}%")
             acc_line = f"<br>Accuracy: {' · '.join(parts)}"
         player_lines = "".join(
-            f"<br>{p}: {n}"
-            for p, n in sorted(players.items(), key=lambda x: -x[1])
+            f"<br>{p}: {n}" for p, n in sorted(players.items(), key=lambda x: -x[1])
         )
         return (
             f"<b>{label}</b><br>"
@@ -592,8 +653,7 @@ def welcome_opening_sankey(
         return _hex_to_rgba(_GP["whisky"], 0.35)
 
     link_colors = [
-        _link_color(r["source"], r["target"])
-        for _, r in edges_df.iterrows()
+        _link_color(r["source"], r["target"]) for _, r in edges_df.iterrows()
     ]
 
     fig = go.Figure(
@@ -623,11 +683,13 @@ def welcome_opening_sankey(
             )
         ]
     )
-    fig.update_layout(**_gp_layout(
-        title=title,
-        margin=dict(l=10, r=10, t=64, b=20),
-        height=540,
-    ))
+    fig.update_layout(
+        **_gp_layout(
+            title=title,
+            margin=dict(l=10, r=10, t=64, b=20),
+            height=540,
+        )
+    )
     return fig
 
 
@@ -661,16 +723,18 @@ def opening_share_pie(
             hovertemplate="<b>%{label}</b><br>%{value} games (%{percent})<extra></extra>",
         )
     )
-    fig.update_layout(**_gp_layout(
-        title=(
-            f"{opening_name} — Share of Scoped Games"
-            if not scope_label
-            else f"{opening_name} — Share of Scoped Games ({scope_label})"
-        ),
-        showlegend=False,
-        margin=dict(l=10, r=10, t=56, b=10),
-        height=320,
-    ))
+    fig.update_layout(
+        **_gp_layout(
+            title=(
+                f"{opening_name} — Share of Scoped Games"
+                if not scope_label
+                else f"{opening_name} — Share of Scoped Games ({scope_label})"
+            ),
+            showlegend=False,
+            margin=dict(l=10, r=10, t=56, b=10),
+            height=320,
+        )
+    )
     return fig
 
 
@@ -685,52 +749,62 @@ def opening_player_wdl_bar(stats_df: pd.DataFrame, opening_name: str) -> go.Figu
     players = stats_df["player"].tolist()
 
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        name="Wins",
-        x=players,
-        y=stats_df["wins"].tolist(),
-        marker_color=_GP["moss"],
-        marker_line_color=_GP["ebony"],
-        marker_line_width=1.5,
-        text=stats_df["wins"].tolist(),
-        textposition="outside",
-        textfont=dict(family=_GP_MONO, size=10, color=_GP["ebony"]),
-        hovertemplate="<b>%{x}</b><br>Wins: %{y}<extra></extra>",
-    ))
-    fig.add_trace(go.Bar(
-        name="Draws",
-        x=players,
-        y=stats_df["draws"].tolist(),
-        marker_color=_GP["steel"],
-        marker_line_color=_GP["ebony"],
-        marker_line_width=1.5,
-        text=stats_df["draws"].tolist(),
-        textposition="outside",
-        textfont=dict(family=_GP_MONO, size=10, color=_GP["ebony"]),
-        hovertemplate="<b>%{x}</b><br>Draws: %{y}<extra></extra>",
-    ))
-    fig.add_trace(go.Bar(
-        name="Losses",
-        x=players,
-        y=stats_df["losses"].tolist(),
-        marker_color=_GP["crimson"],
-        marker_line_color=_GP["ebony"],
-        marker_line_width=1.5,
-        text=stats_df["losses"].tolist(),
-        textposition="outside",
-        textfont=dict(family=_GP_MONO, size=10, color=_GP["ebony"]),
-        hovertemplate="<b>%{x}</b><br>Losses: %{y}<extra></extra>",
-    ))
+    fig.add_trace(
+        go.Bar(
+            name="Wins",
+            x=players,
+            y=stats_df["wins"].tolist(),
+            marker_color=_GP["moss"],
+            marker_line_color=_GP["ebony"],
+            marker_line_width=1.5,
+            text=stats_df["wins"].tolist(),
+            textposition="outside",
+            textfont=dict(family=_GP_MONO, size=10, color=_GP["ebony"]),
+            hovertemplate="<b>%{x}</b><br>Wins: %{y}<extra></extra>",
+        )
+    )
+    fig.add_trace(
+        go.Bar(
+            name="Draws",
+            x=players,
+            y=stats_df["draws"].tolist(),
+            marker_color=_GP["steel"],
+            marker_line_color=_GP["ebony"],
+            marker_line_width=1.5,
+            text=stats_df["draws"].tolist(),
+            textposition="outside",
+            textfont=dict(family=_GP_MONO, size=10, color=_GP["ebony"]),
+            hovertemplate="<b>%{x}</b><br>Draws: %{y}<extra></extra>",
+        )
+    )
+    fig.add_trace(
+        go.Bar(
+            name="Losses",
+            x=players,
+            y=stats_df["losses"].tolist(),
+            marker_color=_GP["crimson"],
+            marker_line_color=_GP["ebony"],
+            marker_line_width=1.5,
+            text=stats_df["losses"].tolist(),
+            textposition="outside",
+            textfont=dict(family=_GP_MONO, size=10, color=_GP["ebony"]),
+            hovertemplate="<b>%{x}</b><br>Losses: %{y}<extra></extra>",
+        )
+    )
 
-    fig.update_layout(**_gp_layout(
-        title=f"Results by Player — {opening_name}",
-        barmode="group",
-        xaxis=dict(title="Player"),
-        yaxis=dict(title="Games"),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(l=10, r=10, t=72, b=10),
-        height=360,
-    ))
+    fig.update_layout(
+        **_gp_layout(
+            title=f"Results by Player — {opening_name}",
+            barmode="group",
+            xaxis=dict(title="Player"),
+            yaxis=dict(title="Games"),
+            legend=dict(
+                orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+            ),
+            margin=dict(l=10, r=10, t=72, b=10),
+            height=360,
+        )
+    )
     return fig
 
 
@@ -749,30 +823,34 @@ def opening_player_accuracy_bar(
 
     df = df.sort_values("avg_accuracy", ascending=True)
 
-    fig = go.Figure(go.Bar(
-        x=df["avg_accuracy"].tolist(),
-        y=df["player"].tolist(),
-        orientation="h",
-        marker_color=_GP["whisky"],
-        marker_line_color=_GP["ebony"],
-        marker_line_width=1.5,
-        text=[f"{v:.1f}%" for v in df["avg_accuracy"]],
-        textposition="outside",
-        textfont=dict(family=_GP_MONO, size=11, color=_GP["ebony"]),
-        hovertemplate="<b>%{y}</b><br>Avg Accuracy: %{x:.1f}%<extra></extra>",
-    ))
-    fig.update_layout(**_gp_layout(
-        title=(
-            f"Average Accuracy by Player — {opening_name}"
-            if not scope_label
-            else f"Average Accuracy by Player — {opening_name} ({scope_label})"
-        ),
-        xaxis=dict(title="Accuracy (%)", range=[0, 105]),
-        yaxis=dict(title=""),
-        margin=dict(l=10, r=60, t=56, b=10),
-        height=max(260, 60 + 50 * len(df)),
-        showlegend=False,
-    ))
+    fig = go.Figure(
+        go.Bar(
+            x=df["avg_accuracy"].tolist(),
+            y=df["player"].tolist(),
+            orientation="h",
+            marker_color=_GP["whisky"],
+            marker_line_color=_GP["ebony"],
+            marker_line_width=1.5,
+            text=[f"{v:.1f}%" for v in df["avg_accuracy"]],
+            textposition="outside",
+            textfont=dict(family=_GP_MONO, size=11, color=_GP["ebony"]),
+            hovertemplate="<b>%{y}</b><br>Avg Accuracy: %{x:.1f}%<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        **_gp_layout(
+            title=(
+                f"Average Accuracy by Player — {opening_name}"
+                if not scope_label
+                else f"Average Accuracy by Player — {opening_name} ({scope_label})"
+            ),
+            xaxis=dict(title="Accuracy (%)", range=[0, 105]),
+            yaxis=dict(title=""),
+            margin=dict(l=10, r=60, t=56, b=10),
+            height=max(260, 60 + 50 * len(df)),
+            showlegend=False,
+        )
+    )
     return fig
 
 
@@ -791,37 +869,43 @@ def opening_frequency_trend(
     fig = go.Figure()
     players = sorted(freq_df["player"].unique())
     if "All selected games" in players:
-        players = ["All selected games"] + [p for p in players if p != "All selected games"]
+        players = ["All selected games"] + [
+            p for p in players if p != "All selected games"
+        ]
     for i, player in enumerate(players):
         pdata = freq_df[freq_df["player"] == player].sort_values("month")
         is_total = player == "All selected games"
         color = _GP["ebony"] if is_total else _GP_COLORWAY[i % len(_GP_COLORWAY)]
-        fig.add_trace(go.Scatter(
-            x=pdata["month"],
-            y=pdata["games"],
-            mode="lines",
-            name=player,
-            line=dict(
-                color=color,
-                width=3.8 if is_total else 3.2,
-                dash="dash" if is_total else "solid",
-            ),
-            hovertemplate=f"<b>{player}</b><br>%{{x|%b %Y}}<br><b>%{{y}} games</b><extra></extra>",
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=pdata["month"],
+                y=pdata["games"],
+                mode="lines",
+                name=player,
+                line=dict(
+                    color=color,
+                    width=3.8 if is_total else 3.2,
+                    dash="dash" if is_total else "solid",
+                ),
+                hovertemplate=f"<b>{player}</b><br>%{{x|%b %Y}}<br><b>%{{y}} games</b><extra></extra>",
+            )
+        )
 
-    fig.update_layout(**_gp_layout(
-        title=(
-            f"Opening Frequency Over Time — {opening_name}"
-            if not scope_label
-            else f"Opening Frequency Over Time — {opening_name} ({scope_label})"
-        ),
-        xaxis=dict(title="Month"),
-        yaxis=dict(title="Games", rangemode="tozero"),
-        hovermode="x unified",
-        legend_title="Player",
-        margin=dict(l=10, r=10, t=56, b=10),
-        height=320,
-    ))
+    fig.update_layout(
+        **_gp_layout(
+            title=(
+                f"Opening Frequency Over Time — {opening_name}"
+                if not scope_label
+                else f"Opening Frequency Over Time — {opening_name} ({scope_label})"
+            ),
+            xaxis=dict(title="Month"),
+            yaxis=dict(title="Games", rangemode="tozero"),
+            hovermode="x unified",
+            legend_title="Player",
+            margin=dict(l=10, r=10, t=56, b=10),
+            height=320,
+        )
+    )
     return fig
 
 
@@ -832,55 +916,63 @@ def opening_wins_losses_bar(metrics_df: pd.DataFrame, top_n: int = 15) -> go.Fig
     top = metrics_df.sort_values("games", ascending=False).head(top_n).copy()
 
     def _truncate(label: str, max_len: int = 30) -> str:
-        return label if len(label) <= max_len else label[:max_len - 1] + "…"
+        return label if len(label) <= max_len else label[: max_len - 1] + "…"
 
     x_labels = [_truncate(str(lbl)) for lbl in top["opening_label"]]
 
     fig = go.Figure()
 
-    fig.add_trace(go.Bar(
-        name="Wins",
-        x=x_labels,
-        y=top["wins"],
-        marker_color=_GP["moss"],
-        marker_line_color=_GP["ebony"],
-        marker_line_width=1.5,
-        text=top["wins"],
-        textposition="outside",
-        textfont=dict(family=_GP_MONO, size=11, color=_GP["ebony"]),
-        hovertemplate="<b>%{x}</b><br>Wins: %{y}<extra></extra>",
-    ))
+    fig.add_trace(
+        go.Bar(
+            name="Wins",
+            x=x_labels,
+            y=top["wins"],
+            marker_color=_GP["moss"],
+            marker_line_color=_GP["ebony"],
+            marker_line_width=1.5,
+            text=top["wins"],
+            textposition="outside",
+            textfont=dict(family=_GP_MONO, size=11, color=_GP["ebony"]),
+            hovertemplate="<b>%{x}</b><br>Wins: %{y}<extra></extra>",
+        )
+    )
 
-    fig.add_trace(go.Bar(
-        name="Losses",
-        x=x_labels,
-        y=-top["losses"],
-        marker_color=_GP["crimson"],
-        marker_line_color=_GP["ebony"],
-        marker_line_width=1.5,
-        text=top["losses"],
-        textposition="outside",
-        textfont=dict(family=_GP_MONO, size=11, color=_GP["ebony"]),
-        hovertemplate="<b>%{x}</b><br>Losses: %{text}<extra></extra>",
-    ))
+    fig.add_trace(
+        go.Bar(
+            name="Losses",
+            x=x_labels,
+            y=-top["losses"],
+            marker_color=_GP["crimson"],
+            marker_line_color=_GP["ebony"],
+            marker_line_width=1.5,
+            text=top["losses"],
+            textposition="outside",
+            textfont=dict(family=_GP_MONO, size=11, color=_GP["ebony"]),
+            hovertemplate="<b>%{x}</b><br>Losses: %{text}<extra></extra>",
+        )
+    )
 
-    fig.update_layout(**_gp_layout(
-        title="Most Common Openings — Wins vs Losses",
-        barmode="relative",
-        xaxis=dict(
-            title="Opening",
-            tickangle=-50,
-            tickfont=dict(family=_GP_MONO, size=11),
-        ),
-        yaxis=dict(
-            title="Games",
-            zeroline=True,
-            zerolinewidth=2,
-            zerolinecolor=_GP["smoke"],
-        ),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(l=10, r=10, t=70, b=180),
-    ))
+    fig.update_layout(
+        **_gp_layout(
+            title="Most Common Openings — Wins vs Losses",
+            barmode="relative",
+            xaxis=dict(
+                title="Opening",
+                tickangle=-50,
+                tickfont=dict(family=_GP_MONO, size=11),
+            ),
+            yaxis=dict(
+                title="Games",
+                zeroline=True,
+                zerolinewidth=2,
+                zerolinecolor=_GP["smoke"],
+            ),
+            legend=dict(
+                orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+            ),
+            margin=dict(l=10, r=10, t=70, b=180),
+        )
+    )
 
     return fig
 
@@ -965,7 +1057,9 @@ def player_accuracy_chart(df: pd.DataFrame, recent_days: int = 7) -> go.Figure:
             legend_title="Player",
             margin=dict(l=20, r=20, t=56, b=20),
             hovermode="x unified",
-            yaxis=dict(title="Accuracy (%)", range=[max(0, df["accuracy"].min() - 5), 100]),
+            yaxis=dict(
+                title="Accuracy (%)", range=[max(0, df["accuracy"].min() - 5), 100]
+            ),
         )
     )
     return fig
