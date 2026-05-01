@@ -32,6 +32,79 @@ def _apply_custom_pieces(svg: str) -> str:
     return svg
 
 
+def _inject_arrow_labels(
+    svg: str, labels: list[dict], size: int, flipped: bool
+) -> str:
+    """Inject SVG text labels at arrow tips in the board SVG."""
+    import re
+    
+    if not labels or not svg:
+        return svg
+    
+    # python-chess SVG uses a fixed internal coordinate space regardless of `size`:
+    # viewBox="0 0 390 390", MARGIN=15, SQUARE_SIZE=45
+    _MARGIN = 15
+    _SQ = 45
+
+    def sq_to_px(sq: str) -> tuple[float, float]:
+        if not sq or len(sq) < 2:
+            return (0.0, 0.0)
+        try:
+            f = ord(sq[0]) - ord('a')
+            r = int(sq[1]) - 1
+            if flipped:
+                f = 7 - f
+                r = 7 - r
+            x = _MARGIN + (f + 0.5) * _SQ
+            y = _MARGIN + (7 - r + 0.5) * _SQ
+            return (x, y)
+        except (ValueError, IndexError):
+            return (0.0, 0.0)
+    
+    # Group labels by destination square so co-located ones can be spaced apart
+    by_sq: dict[str, list[dict]] = {}
+    for label_data in labels:
+        to_sq = label_data.get("to_sq", "")
+        text = label_data.get("label", "")
+        if not to_sq or not text:
+            continue
+        by_sq.setdefault(to_sq, []).append(label_data)
+
+    font_size = 11
+    line_h = font_size + 3  # vertical gap between stacked labels (viewBox units)
+
+    text_elements = []
+    for to_sq, sq_labels in by_sq.items():
+        cx, cy = sq_to_px(to_sq)
+        # Place the group in the upper-centre of the square (viewBox units)
+        base_y = cy - _SQ * 0.22
+        # Stack multiple labels vertically, centred together
+        n = len(sq_labels)
+        start_y = base_y - (n - 1) * line_h / 2
+        for idx, label_data in enumerate(sq_labels):
+            text = label_data.get("label", "")
+            engine = label_data.get("engine", "SF").lower()
+            fg = "#FFE082" if ("sf" in engine or "stock" in engine) else "#80CBC4"
+            lx = cx
+            ly = start_y + idx * line_h
+            text_elements.append(
+                f'<rect x="{lx - 18:.1f}" y="{ly - font_size + 1:.1f}" '
+                f'width="36" height="{font_size + 2}" rx="2" '
+                f'fill="#1A1A1A" fill-opacity="0.72" pointer-events="none"/>'
+                f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle" '
+                f'dominant-baseline="auto" font-size="{font_size}" font-weight="bold" '
+                f'font-family="monospace" fill="{fg}" pointer-events="none">{text}</text>'
+            )
+    
+    if not text_elements:
+        return svg
+    
+    # Insert text elements before closing </svg> tag
+    text_html = "\n".join(text_elements)
+    svg_with_labels = re.sub(r'</svg>', f'{text_html}\n</svg>', svg, count=1)
+    return svg_with_labels
+
+
 def render_svg_game_viewer(
     pgn: str,
     moves_df: pd.DataFrame,
@@ -44,8 +117,14 @@ def render_svg_game_viewer(
     black_player: str = "Black",
     sf_arrow_tiers: "dict[int, list[dict[str, object]]] | None" = None,
     lc0_arrow_tiers: "dict[int, list[dict[str, object]]] | None" = None,
+    sf_played_scores: "dict[int, float] | None" = None,
+    lc0_played_scores: "dict[int, float] | None" = None,
     sf_arrow_label_prefix: str = "SF",
     lc0_arrow_label_prefix: str = "Lc0",
+    has_sf: bool = False,
+    has_lc0: bool = False,
+    show_sf_initial: bool = True,
+    show_lc0_initial: bool = True,
 ) -> None:
     """Full-game SVG viewer with play/pause, scrubber, move list, and best-move arrows.
 
@@ -107,13 +186,15 @@ def render_svg_game_viewer(
 
         def _add_arrows(
             tier_map: "dict[int, list[dict[str, object]]] | None",
+            played_scores: "dict[int, float] | None",
             colors: list[str],
             engine_prefix: str,
         ) -> None:
             if tier_map is None:
                 return
 
-            tier_entries = tier_map.get(ply_i + start_ply_offset, [])
+            abs_ply = ply_i + start_ply_offset
+            tier_entries = tier_map.get(abs_ply, [])
             scores: list[float | None] = []
             ucis: list[str] = []
             for entry in tier_entries:
@@ -128,6 +209,10 @@ def render_svg_game_viewer(
                 else:
                     ucis.append(str(entry or ""))
                     scores.append(None)
+
+            played_score = None
+            if played_scores is not None:
+                played_score = played_scores.get(abs_ply)
 
             base = scores[0] if scores and scores[0] is not None else None
             max_gap = 0.0
@@ -166,25 +251,50 @@ def render_svg_game_viewer(
                         )
                     )
                     score_txt = ""
-                    if base is not None and scores[i] is not None:
-                        # Relative gain vs this tier from mover perspective (cp / cp-equiv)
-                        gain = max(0.0, float(base - scores[i]))
-                        gain_txt = int(round(gain / 100.0)) if abs(base) > 400 else int(round(gain))
-                        score_txt = f"+{gain_txt}"
+                    if played_score is not None and scores[i] is not None:
+                        # Labels show advantage of candidate over played move
+                        # SF: raw centipawns; Lc0: win% change
+                        gain = float(scores[i]) - float(played_score)
+                        if "lc0" in engine_prefix.lower():
+                            # Lc0: convert cp-equiv to win% change (roughly: 1 pawn = 0.04 win%)
+                            win_pct_change = (gain / 100.0) * 0.04
+                            rounded = int(round(win_pct_change * 100))  # convert to bps
+                            score_txt = f"{rounded:+d}%" if rounded != 0 else "±0%"
+                        else:
+                            # Stockfish: raw centipawns
+                            rounded = int(round(gain))
+                            score_txt = f"{rounded:+d}"
+                    elif base is not None and scores[i] is not None:
+                        gap = float(base) - float(scores[i])
+                        if "lc0" in engine_prefix.lower():
+                            win_pct_change = (gap / 100.0) * 0.04
+                            rounded = int(round(win_pct_change * 100))
+                            score_txt = f"{rounded:+d}%" if rounded != 0 else "±0%"
+                        else:
+                            rounded = int(round(gap))
+                            score_txt = f"{rounded:+d}"
                     elif scores[i] is not None:
-                        score_txt = f"{int(round(float(scores[i])))}"
-                    if i == 0:
-                        label = f"{engine_prefix}"
-                    else:
-                        label = f"{engine_prefix} {score_txt}" if score_txt else f"{engine_prefix}"
-                    arrow_labels_by_ply.setdefault(ply_i, []).append(
-                        {
-                            "engine": engine_prefix,
-                            "label": label,
-                            "uci": uci,
-                            "tier": i + 1,
-                        }
-                    )
+                        # Fallback: show raw score if we can't compare
+                        score_val = float(scores[i])
+                        if "lc0" in engine_prefix.lower():
+                            rounded = int(round(score_val))
+                            score_txt = f"{rounded:+d}%"
+                        else:
+                            rounded = int(round(score_val))
+                            score_txt = f"{rounded:+d}"
+                    
+                    label = score_txt
+                    payload = {
+                        "engine": engine_prefix,
+                        "label": label,
+                        "uci": uci,
+                        "tier": i + 1,
+                        "from_sq": uci[:2],
+                        "to_sq": uci[2:4],
+                    }
+                    arrow_labels_by_ply.setdefault(ply_i, []).append(payload)
+                    if abs_ply != ply_i:
+                        arrow_labels_by_ply.setdefault(abs_ply, []).append(payload)
                 except ValueError:
                     pass
 
@@ -204,7 +314,12 @@ def render_svg_game_viewer(
             is_best_map[ply_i] = move.uci() == _sf_best
 
         if sf_arrow_tiers is not None:
-            _add_arrows(sf_arrow_tiers, _SF_ARROW_COLORS, sf_arrow_label_prefix)
+            _add_arrows(
+                sf_arrow_tiers,
+                sf_played_scores,
+                _SF_ARROW_COLORS,
+                sf_arrow_label_prefix,
+            )
         else:
             # Fallback: use moves_df arrow_uci as a single-tier SF arrow
             uci_str = arrow_map.get(ply_i, "")
@@ -220,20 +335,34 @@ def render_svg_game_viewer(
                 except ValueError:
                     pass
 
-        _add_arrows(lc0_arrow_tiers, _LC0_ARROW_COLORS, lc0_arrow_label_prefix)
-
-        frames.append(
-            _apply_custom_pieces(
-                chess.svg.board(
-                    board,
-                    size=size,
-                    lastmove=move,
-                    arrows=arrows,
-                    flipped=flipped,
-                    colors=_BOARD_COLORS,
-                )
-            )
+        _add_arrows(
+            lc0_arrow_tiers,
+            lc0_played_scores,
+            _LC0_ARROW_COLORS,
+            lc0_arrow_label_prefix,
         )
+
+        board_svg = chess.svg.board(
+            board,
+            size=size,
+            lastmove=move,
+            arrows=arrows,
+            flipped=flipped,
+            colors=_BOARD_COLORS,
+        )
+        
+        # Inject arrow labels into the SVG
+        # Check both relative ply (ply_i) and absolute ply (ply_i + start_ply_offset)
+        labels_for_ply = arrow_labels_by_ply.get(ply_i, [])
+        if not labels_for_ply:
+            labels_for_ply = arrow_labels_by_ply.get(ply_i + start_ply_offset, [])
+        
+        if labels_for_ply:
+            board_svg = _inject_arrow_labels(
+                board_svg, labels_for_ply, size, flipped
+            )
+
+        frames.append(_apply_custom_pieces(board_svg))
 
     total_frames = len(frames)  # 0..N where 0=start, 1=after move 1, etc.
 
@@ -264,6 +393,14 @@ def render_svg_game_viewer(
     bottom_player = white_player if not flipped else black_player
     bottom_sym = "♙" if not flipped else "♟"
     bottom_side = "White" if not flipped else "Black"
+
+    _sf_checked = "checked" if (has_sf and show_sf_initial) else ""
+    _lc0_checked = "checked" if (has_lc0 and show_lc0_initial) else ""
+    _sf_disabled = "" if has_sf else "disabled"
+    _lc0_disabled = "" if has_lc0 else "disabled"
+    _toggles_display = "flex" if (has_sf or has_lc0) else "none"
+    _js_show_sf = "true" if (has_sf and show_sf_initial) else "false"
+    _js_show_lc0 = "true" if (has_lc0 and show_lc0_initial) else "false"
 
     html = f"""
     <style>
@@ -390,6 +527,61 @@ def render_svg_game_viewer(
         color: #F2E6D0;
         font-weight: 600;
       }}
+      #{viewer_id} .arrow-labels {{
+        display: none;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        padding: 4px 4px 8px;
+        min-height: 24px;
+        font-family: monospace;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }}
+      #{viewer_id} .arrow-chip {{
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 7px;
+        border: 1px solid #1A1A1A;
+        background: rgba(242,230,208,0.92);
+        color: #1A1A1A;
+      }}
+      #{viewer_id} .arrow-chip--sf {{
+        background: rgba(212,168,67,0.22);
+      }}
+      #{viewer_id} .arrow-chip--lc0 {{
+        background: rgba(74,110,138,0.22);
+      }}
+      #{viewer_id} .arrow-toggles {{
+        display: {_toggles_display};
+        gap: 14px;
+        align-items: center;
+        padding: 5px 2px 2px;
+        font-family: 'DM Mono', monospace;
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+      }}
+      #{viewer_id} .arrow-toggle-label {{
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+        user-select: none;
+      }}
+      #{viewer_id} .arrow-toggle-label input[type="checkbox"] {{
+        accent-color: inherit;
+        width: 13px;
+        height: 13px;
+        cursor: pointer;
+      }}
+      #{viewer_id} .arrow-swatch {{
+        display: inline-block;
+        width: 18px;
+        height: 4px;
+        border-radius: 2px;
+        vertical-align: middle;
+      }}
       @media (max-width: 900px) {{
         #{viewer_id} .viewer-grid {{
           grid-template-columns: 1fr;
@@ -422,8 +614,19 @@ def render_svg_game_viewer(
                    value="{start_ply}" oninput="goTo(parseInt(this.value))">
             <span class="ply-label" id="{viewer_id}-label"></span>
           </div>
-          <div class="arrow-labels" id="{viewer_id}-arrow-labels" style="font-family:monospace;font-size:11px;color:#5A5A5A;padding:0 4px 8px;min-height:18px"></div>
           <div class="move-list" id="{viewer_id}-moves">{moves_html}</div>
+          <div class="arrow-toggles" id="{viewer_id}-arrow-toggles">
+            <label class="arrow-toggle-label" style="color:#D4A843" title="Stockfish arrows">
+              <input type="checkbox" id="{viewer_id}-sf-toggle" {_sf_checked} {_sf_disabled} onchange="toggleArrows()">
+              <span class="arrow-swatch" style="background:linear-gradient(90deg,#D4A843EE,#D4A84308)"></span>
+              SF
+            </label>
+            <label class="arrow-toggle-label" style="color:#4A6E8A" title="Lc0 arrows">
+              <input type="checkbox" id="{viewer_id}-lc0-toggle" {_lc0_checked} {_lc0_disabled} onchange="toggleArrows()">
+              <span class="arrow-swatch" style="background:linear-gradient(90deg,#4A6E8AEE,#4A6E8A08)"></span>
+              Lc0
+            </label>
+          </div>
         </div>
         <div class="analysis-pane">
           <div id="{viewer_id}-eval"></div>
@@ -436,6 +639,7 @@ def render_svg_game_viewer(
       const frames = {frames_json};
       const arrowLabels = {arrow_labels_json};
       const totalFrames = frames.length;
+      const startPlyOffset = {start_ply_offset};
       let currentPly = {start_ply};
       let playing = false;
       let timer = null;
@@ -446,12 +650,33 @@ def render_svg_game_viewer(
       const playBtn = document.getElementById('{viewer_id}-playbtn');
       const movesEl = document.getElementById('{viewer_id}-moves');
       const arrowLabelsEl = document.getElementById('{viewer_id}-arrow-labels');
+      const sfToggle = document.getElementById('{viewer_id}-sf-toggle');
+      const lc0Toggle = document.getElementById('{viewer_id}-lc0-toggle');
       const allMoveSpans = movesEl.querySelectorAll('.move');
+
+      let showSF = {_js_show_sf};
+      let showLc0 = {_js_show_lc0};
 
       window.currentPly = currentPly;
 
+      function applyArrowVisibility() {{
+        boardEl.querySelectorAll('line[stroke*="D4A843"], polygon[fill*="D4A843"]').forEach(function(el) {{
+          el.style.display = showSF ? '' : 'none';
+        }});
+        boardEl.querySelectorAll('line[stroke*="4A6E8A"], polygon[fill*="4A6E8A"]').forEach(function(el) {{
+          el.style.display = showLc0 ? '' : 'none';
+        }});
+      }}
+
+      window.toggleArrows = function() {{
+        if (sfToggle) showSF = sfToggle.checked;
+        if (lc0Toggle) showLc0 = lc0Toggle.checked;
+        applyArrowVisibility();
+      }};
+
       function render() {{
         boardEl.innerHTML = frames[currentPly];
+        applyArrowVisibility();
         slider.value = currentPly;
         if (currentPly === 0) {{
           label.textContent = 'Start';
@@ -462,14 +687,31 @@ def render_svg_game_viewer(
         }}
         // highlight active move in list
         allMoveSpans.forEach(s => s.classList.remove('active'));
-        const plyLabels = arrowLabels[String(currentPly)] || [];
-        if (arrowLabelsEl) {
-          if (plyLabels.length) {
-            arrowLabelsEl.textContent = plyLabels.map(x => x.label).join('   ·   ');
-          } else {
-            arrowLabelsEl.textContent = '';
-          }
-        }
+        const plyLabels = (
+          arrowLabels[currentPly]
+          || arrowLabels[String(currentPly)]
+          || arrowLabels[currentPly + startPlyOffset]
+          || arrowLabels[String(currentPly + startPlyOffset)]
+          || []
+        );
+        if (arrowLabelsEl) {{
+          if (plyLabels.length) {{
+            arrowLabelsEl.replaceChildren();
+            plyLabels.forEach((x) => {{
+              const chip = document.createElement('span');
+              const engine = String(x.engine || '').toLowerCase();
+              chip.className = 'arrow-chip' + (engine ? ' arrow-chip--' + engine : '');
+              chip.textContent = String(x.label || '');
+              arrowLabelsEl.appendChild(chip);
+            }});
+            arrowLabelsEl.style.display = 'flex';
+          }} else {{
+            arrowLabelsEl.replaceChildren();
+            arrowLabelsEl.style.display = 'none';
+          }}
+        }} else {{
+          console.error('[render] arrowLabelsEl is null!');
+        }}
         if (currentPly > 0) {{
           const active = movesEl.querySelector('.move[data-ply="' + currentPly + '"]');
           if (active) {{
