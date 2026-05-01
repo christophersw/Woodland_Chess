@@ -874,6 +874,7 @@ def _build_lc0_tiers(df) -> "dict[int, list[str]]":
         tier = [
             str(r.get("arrow_uci", "") or ""),
             str(r.get("arrow_uci_2", "") or ""),
+            str(r.get("arrow_uci_3", "") or ""),
         ]
         if any(tier):
             tiers[int(r["ply"])] = tier
@@ -903,7 +904,7 @@ if _has_sf or _has_lc0:
     </style>
     <div class="arrow-legend">
       <span><span class="swatch" style="background:linear-gradient(90deg,#D4A843CC,#D4A84777,#D4A84733)"></span>Stockfish: best · better · good</span>
-      <span><span class="swatch" style="background:linear-gradient(90deg,#4A6E8ACC,#4A6E8A77,#4A6E8A33)"></span>Lc0: best · better</span>
+      <span><span class="swatch" style="background:linear-gradient(90deg,#4A6E8ACC,#4A6E8A77,#4A6E8A33)"></span>Lc0: best · better · good</span>
     </div>""")
     _chk_col1, _chk_col2, *_ = st.columns([1, 1, 3])
     with _chk_col1:
