@@ -1,21 +1,34 @@
-streamlit>=1.44.0
+# Django web app
+django>=5.0
+psycopg2-binary
+gunicorn
+whitenoise
+python-decouple
+django-tailwind-cli
+django-htmx
+
+# Chess / analysis
+python-chess>=1.999
 plotly>=5.20.0
 pandas>=2.2.0
+anthropic
+
+# Worker pipeline (sync + analysis workers in app/ingest/)
 sqlalchemy>=2.0.29
 psycopg[binary]>=3.2.0
-python-chess>=1.999
-streamlit-plotly-events>=0.0.6
 passlib[bcrypt]>=1.7.4
 pydantic-settings>=2.8.0
 requests>=2.32.2
 tqdm>=4.66.0
 runpod>=1.7.0
-pyarrow>=14.0.1 # not directly required, pinned by Snyk to avoid a vulnerability
-pillow>=10.3.0 # not directly required, pinned by Snyk to avoid a vulnerability
-urllib3>=2.6.3 # not directly required, pinned by Snyk to avoid a vulnerability
-protobuf>=5.29.6 # not directly required, pinned by Snyk to avoid a vulnerability
-tornado>=6.5.5 # not directly required, pinned by Snyk to avoid a vulnerability
-zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
-pygments>=2.20.0 # not directly required, pinned by Snyk to avoid a vulnerability
-validators>=0.21.0 # not directly required, pinned by Snyk to avoid a vulnerability
-numpy>=1.22.2 # not directly required, pinned by Snyk to avoid a vulnerability
+
+# Pinned by Snyk to avoid known vulnerabilities
+pyarrow>=14.0.1
+pillow>=10.3.0
+urllib3>=2.6.3
+protobuf>=5.29.6
+tornado>=6.5.5
+zipp>=3.19.1
+pygments>=2.20.0
+validators>=0.21.0
+numpy>=1.22.2

@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Dashboard — Wood League Chess{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-10">
+
+  {# ── Header ──────────────────────────────────────────────────────────── #}
+  <div>
+    <h1 class="text-3xl font-display text-forest">Wood League Chess Club</h1>
+    <p class="font-mono text-xs text-slate mt-1">
+      Club overview — accuracy trends, best played games, and all-time records.
+    </p>
+  </div>
+
+  {# ── Filters ─────────────────────────────────────────────────────────── #}
+  <div class="flex flex-wrap items-end gap-4 p-4 bg-cream border border-peat/20 rounded"
+       id="dashboard-filters">
+    <div>
+      <label class="block text-xs font-mono uppercase tracking-wide text-peat mb-1">Timeframe</label>
+      <select id="filter-days" name="days"
+              class="px-3 py-1.5 border border-peat/30 rounded bg-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-forest"
+              hx-get="/_partials/dashboard/accuracy/"
+              hx-trigger="change"
+              hx-target="#accuracy-chart-container"
+              hx-include="#dashboard-filters">
+        {% for value, label in timeframe_options %}
+        <option value="{{ value }}" {% if value == "90" %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label class="block text-xs font-mono uppercase tracking-wide text-peat mb-1">Players</label>
+      <div class="flex flex-wrap gap-2" id="player-checkboxes">
+        {% for member in all_members %}
+        <label class="flex items-center gap-1 text-xs font-mono cursor-pointer">
+          <input type="checkbox" name="players" value="{{ member }}" checked
+                 class="accent-forest"
+                 hx-trigger="change"
+                 hx-get="/_partials/dashboard/accuracy/"
+                 hx-target="#accuracy-chart-container"
+                 hx-include="#dashboard-filters">
+          {{ member }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {# ── Recent Games ─────────────────────────────────────────────────────── #}
+  <section>
+    <div class="flex items-baseline justify-between mb-3">
+      <h2 class="text-xl font-display text-forest">Most Recent Games</h2>
+      <span class="font-mono text-xs text-slate">Last checked: {{ last_check_time }}</span>
+    </div>
+    {% if recent_games %}
+    <div class="overflow-x-auto">
+      <table class="wc-table">
+        <thead>
+          <tr>
+            <th>#</th><th>White</th><th>Black</th>
+            <th>Opening</th><th>Accuracy</th><th>Date</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for g in recent_games %}
+          <tr>
+            <td class="font-mono text-xs text-peat">#{{ forloop.counter }}</td>
+            <td class="font-serif">♙ {{ g.white }}</td>
+            <td class="font-serif">♟ {{ g.black }}</td>
+            <td class="font-mono text-xs text-slate">{{ g.opening_name|truncatechars:40 }}</td>
+            <td class="font-mono text-xs font-bold text-forest">
+              {% if g.avg_accuracy %}{{ g.avg_accuracy|floatformat:1 }}%{% else %}—{% endif %}
+            </td>
+            <td class="font-mono text-xs text-peat">{{ g.played_at|date:"d M Y" }}</td>
+            <td>
+              {% if g.slug %}
+              <a href="{% url 'games:analysis' g.slug %}"
+                 class="inline-block border border-ebony text-forest font-mono text-xs uppercase tracking-wide px-3 py-1 hover:bg-ebony hover:text-parchment transition-colors">
+                Open
+              </a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="font-mono text-sm text-slate">No analysed games found.</p>
+    {% endif %}
+  </section>
+
+  {# ── Accuracy Chart ───────────────────────────────────────────────────── #}
+  <section>
+    <h2 class="text-xl font-display text-forest mb-3">Member Accuracy Trends</h2>
+    <div id="accuracy-chart-container"
+         hx-get="/_partials/dashboard/accuracy/?days=90"
+         hx-trigger="load"
+         hx-indicator="#htmx-indicator">
+      {% include "partials/_spinner.html" %}
+    </div>
+  </section>
+
+  {# ── ELO Chart ────────────────────────────────────────────────────────── #}
+  <section>
+    <h2 class="text-xl font-display text-forest mb-3">Member ELO Trends</h2>
+    <div id="elo-chart-container"
+         hx-get="/_partials/dashboard/elo/?days=90"
+         hx-trigger="load"
+         hx-indicator="#htmx-indicator">
+      {% include "partials/_spinner.html" %}
+    </div>
+  </section>
+
+  {# ── Opening Continuations Sankey ─────────────────────────────────────── #}
+  <section>
+    <h2 class="text-xl font-display text-forest mb-1">Opening Continuations</h2>
+    <p class="font-mono text-xs text-slate mb-3">Click a node to see stats for that opening path.</p>
+    <div id="sankey-chart-container"
+         hx-get="/_partials/dashboard/sankey/?days=90"
+         hx-trigger="load"
+         hx-indicator="#htmx-indicator">
+      {% include "partials/_spinner.html" %}
+    </div>
+    <div id="opening-node-stats" class="mt-4"></div>
+  </section>
+
+  {# ── Best Recent Games ────────────────────────────────────────────────── #}
+  <section>
+    <h2 class="text-xl font-display text-forest mb-1">Best Played Games — Recent</h2>
+    <p class="font-mono text-xs text-slate mb-3">Top 10 games from the last 30 days ranked by combined accuracy.</p>
+    <div id="best-recent-container"
+         hx-get="/_partials/dashboard/best-recent/?days=30"
+         hx-trigger="load"
+         hx-indicator="#htmx-indicator">
+      {% include "partials/_spinner.html" %}
+    </div>
+  </section>
+
+  {# ── Best All-Time Games ──────────────────────────────────────────────── #}
+  <section>
+    <h2 class="text-xl font-display text-forest mb-1">Best Club Games — All Time</h2>
+    <p class="font-mono text-xs text-slate mb-3">The 10 best games ever played, ranked by lowest combined ACPL.</p>
+    <div id="best-alltime-container"
+         hx-get="/_partials/dashboard/best-alltime/"
+         hx-trigger="load"
+         hx-indicator="#htmx-indicator">
+      {% include "partials/_spinner.html" %}
+    </div>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Relay Sankey node clicks to the opening-stats partial
+document.addEventListener("plotly_click", function(e) {
+  var detail = e.detail;
+  if (!detail || !detail.points || !detail.points.length) return;
+  var pt = detail.points[0];
+  var label = pt.label || (pt.customdata && pt.customdata[0]) || null;
+  if (!label) {
+    var labels = JSON.parse(document.getElementById("sankey-labels-data").textContent || "[]");
+    if (pt.pointNumber != null && labels[pt.pointNumber]) label = labels[pt.pointNumber];
+  }
+  if (!label) return;
+  htmx.ajax("POST", "/_partials/dashboard/opening-stats/", {
+    target: "#opening-node-stats",
+    swap: "innerHTML",
+    values: { node: label, days: document.getElementById("filter-days").value }
+  });
+});
+</script>
+{% endblock %}

@@ -10,3 +10,9 @@ __pycache__/
 .snyk-venv/
 .snyk-requirements.txt
 snyk-debug.log
+
+# Django
+staticfiles/
+*.pyc
+db.sqlite3
+wood_league_chess.db

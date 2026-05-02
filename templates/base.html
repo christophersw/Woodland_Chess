@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Wood League Chess{% endblock %}</title>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="h-full bg-parchment font-serif text-ebony">
+
+  {% include "partials/_messages.html" %}
+
+  <div class="flex h-full">
+    {% include "partials/_sidebar_nav.html" %}
+
+    <main class="flex-1 overflow-y-auto p-6" id="main-content">
+      <div id="htmx-indicator" class="htmx-indicator fixed top-4 right-4 z-50">
+        {% include "partials/_spinner.html" %}
+      </div>
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <script src="{% static 'js/htmx.min.js' %}"></script>
+  <script src="{% static 'js/plotly.min.js' %}"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

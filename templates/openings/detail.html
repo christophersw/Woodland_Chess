@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ opening.eco }} {{ opening.name }} — Wood League Chess{% endblock %}
+
+{% block extra_head %}
+<style>
+  .ot-node rect { transition: filter .12s ease; }
+  .ot-node:hover rect { filter: brightness(0.88) drop-shadow(0 2px 8px rgba(26,26,26,.28)); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-screen-xl mx-auto space-y-10">
+
+  {# ── Header ──────────────────────────────────────────────────────────── #}
+  <div class="border-b-2 border-ebony pb-4">
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div>
+        <p class="font-mono text-xs text-peat uppercase tracking-widest mb-1">{{ opening.eco }}</p>
+        <h1 class="font-display text-2xl text-forest leading-tight">{{ opening.name }}</h1>
+        <p class="font-mono text-xs text-slate mt-1">
+          {{ opening.ply_depth }} half-moves · <span class="text-peat">{{ opening.pgn }}</span>
+        </p>
+      </div>
+      <a href="{% url 'dashboard:index' %}"
+         class="inline-block border border-ebony text-slate font-mono text-xs uppercase tracking-wide px-3 py-1.5 hover:bg-ebony hover:text-parchment transition-colors flex-shrink-0">
+        ← Dashboard
+      </a>
+    </div>
+  </div>
+
+  {# ── Filters ─────────────────────────────────────────────────────────── #}
+  <div class="flex flex-wrap items-end gap-4 p-4 bg-cream border border-peat/20 rounded"
+       id="opening-filters">
+    <input type="hidden" name="opening_id" value="{{ opening.id }}">
+    <div>
+      <label class="block text-xs font-mono uppercase tracking-wide text-peat mb-1">Timeframe</label>
+      <select id="filter-days" name="days"
+              class="px-3 py-1.5 border border-peat/30 rounded bg-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-forest"
+              hx-get="/_partials/openings/{{ opening.id }}/stats/"
+              hx-trigger="change"
+              hx-target="#opening-stats-panel"
+              hx-include="#opening-filters"
+              hx-indicator="#htmx-indicator">
+        {% for value, label in timeframe_options %}
+        <option value="{{ value }}" {% if value == default_days %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-mono uppercase tracking-wide text-peat mb-1">Players</label>
+      <div class="flex flex-wrap gap-2" id="player-checkboxes">
+        {% for member in all_members %}
+        <label class="flex items-center gap-1 text-xs font-mono cursor-pointer">
+          <input type="checkbox" name="players" value="{{ member }}" checked
+                 class="accent-forest"
+                 hx-trigger="change"
+                 hx-get="/_partials/openings/{{ opening.id }}/stats/"
+                 hx-target="#opening-stats-panel"
+                 hx-include="#opening-filters"
+                 hx-indicator="#htmx-indicator">
+          {{ member }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {# ── Board + Opening share ─────────────────────────────────────────────── #}
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+    <div>
+      <h2 class="text-lg font-display text-forest mb-3">Position</h2>
+      <div class="overflow-hidden inline-block border border-ebony/20">
+        {{ board_svg|safe }}
+      </div>
+    </div>
+    <div id="opening-share-chart">
+      {# Populated by stats partial on load #}
+      <p class="font-mono text-xs text-slate">Loading stats…</p>
+    </div>
+  </div>
+
+  {# ── Opening Tree ─────────────────────────────────────────────────────── #}
+  <section>
+    <h2 class="text-xl font-display text-forest mb-1">Opening Tree Context</h2>
+    <p class="font-mono text-xs text-slate mb-4">
+      How this opening sits in the opening tree (Last 90 days · All members).
+      Arrow width reflects how many games used each transition.
+      {% if tree_selected_games %}
+        {{ tree_selected_games }} game{% if tree_selected_games != 1 %}s{% endif %} reached this position
+        {% if tree_total_scoped %}
+          ({{ tree_selected_games|floatformat:0 }} of {{ tree_total_scoped }})
+        {% endif %}.
+      {% endif %}
+      Nodes link to their opening page.
+    </p>
+    {% if tree_svg %}
+    <div class="overflow-x-auto border border-ebony/10 rounded bg-parchment p-2">
+      {{ tree_svg|safe }}
+    </div>
+    {% else %}
+    <p class="font-mono text-sm text-slate">No lineage data available for this opening.</p>
+    {% endif %}
+  </section>
+
+  {# ── Stats Panel (HTMX-swapped) ───────────────────────────────────────── #}
+  <div id="opening-stats-panel"
+       hx-get="/_partials/openings/{{ opening.id }}/stats/?days={{ default_days }}"
+       hx-trigger="load"
+       hx-indicator="#htmx-indicator">
+    <div class="flex items-center gap-2 font-mono text-sm text-slate">
+      {% include "partials/_spinner.html" %}
+      Loading…
+    </div>
+  </div>
+
+</div>
+{% endblock %}

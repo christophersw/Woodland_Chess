@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  --color-parchment: #f5f0e8;
+  --color-ebony: #1a1410;
+  --color-forest: #2d4a3e;
+  --color-moss: #4a7a6a;
+  --color-whisky: #8b6914;
+  --color-peat: #5c4a2a;
+  --color-cream: #faf7f0;
+  --color-slate: #6b7280;
+
+  --font-serif: "EB Garamond", "Cormorant Garamond", Georgia, serif;
+  --font-display: "Playfair Display SC", "EB Garamond", serif;
+  --font-mono: "DM Mono", "Courier New", monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-parchment text-ebony;
+    font-family: var(--font-serif);
+  }
+  h1, h2, h3 {
+    font-family: var(--font-display);
+  }
+  code, pre, .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+@layer components {
+  .dub-bar {
+    @apply flex items-center gap-3 py-1;
+  }
+  .dub-bar-fill {
+    @apply h-4 bg-forest rounded-sm;
+  }
+  .analysis-stat-card {
+    @apply bg-cream border border-peat/20 rounded p-4 text-center;
+  }
+  .wc-table {
+    @apply w-full text-sm border-collapse;
+  }
+  .wc-table th {
+    @apply text-left px-3 py-2 font-mono text-xs uppercase tracking-wide text-slate border-b border-peat/20;
+  }
+  .wc-table td {
+    @apply px-3 py-2 border-b border-peat/10;
+  }
+  .wc-table tr:hover td {
+    @apply bg-cream;
+  }
+}
+
+/* HTMX loading indicator — hidden by default, visible during requests */
+.htmx-indicator {
+  display: none;
+}
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+  display: flex;
+}
