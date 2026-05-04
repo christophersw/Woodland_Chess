@@ -29,15 +29,18 @@
     <p style="margin-top:.45rem;font-family:var(--font-mono);font-size:.65rem;
               letter-spacing:.06em;color:var(--color-forest);display:inline-block;
               border:1px solid var(--color-forest);padding:.2rem .55rem;">
-      {{ opening_label }}
+      {% if opening_id %}
+        <a href="{% url 'openings:detail' opening_id %}" style="color:inherit;text-decoration:none;">
+          {{ opening_label }}
+        </a>
+      {% else %}
+        {{ opening_label }}
+      {% endif %}
     </p>
     {% endif %}
     {% endif %}
   </div>
   <div class="flex gap-2 flex-wrap" style="align-self:flex-start;margin-top:.25rem;">
-    {% if not no_data %}
-    <a href="{{ flip_url }}" class="wc-btn">Flip Board</a>
-    {% endif %}
     {% if chesscom_url %}
     <a href="{{ chesscom_url }}" target="_blank" rel="noopener" class="wc-btn wc-btn-ghost">Chess.com ↗</a>
     {% endif %}
@@ -54,18 +57,314 @@
   <p class="font-mono text-xs text-slate" style="margin-top:.5rem;">Game: {{ game.id }}</p>
 </div>
 
-{# ── Board viewer + engine analysis ───────────────────────────────────── #}
 {% else %}
-<div style="margin-bottom:2rem;">
-  {{ board_html|safe }}
-</div>
 
-<div class="pg-section">
+{# ── Engine Analysis section ───────────────────────────────────────────── #}
+<div class="pg-section" style="margin-bottom:2rem;">
   <div class="pg-head">
     <span class="pg-title">Engine Analysis</span>
   </div>
-  {{ stat_cards_html|safe }}
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;">
+    {{ engine_cards_html|safe }}
+  </div>
 </div>
+
+{# ── Move Analysis section ─────────────────────────────────────────────── #}
+<div class="pg-section">
+  <div class="pg-head">
+    <span class="pg-title">Move Analysis</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:24px;align-items:start;">
+
+    {# ── Board + PGN ────────────────────────────────────────────────────── #}
+    <div style="display:flex;flex-direction:column;gap:12px;min-width:0;">
+
+      {# Board loaded by HTMX on page load; reloaded on flip via htmx.ajax() #}
+      <div id="board-container"
+           hx-get="/_partials/games/{{ game.slug }}/board/?orientation={{ initial_perspective }}"
+           hx-trigger="load"
+           hx-swap="innerHTML">
+        <div style="height:520px;display:flex;align-items:center;justify-content:center;
+                    font-family:'DM Mono',monospace;font-size:.72rem;color:#8B3A2A;">
+          Loading board…
+        </div>
+      </div>
+
+      {# PGN move table #}
+      <div style="border-top:2.5px solid #1A1A1A;border-bottom:1.5px solid #1A1A1A;">
+        <div style="font-family:'DM Mono',monospace;font-size:.54rem;letter-spacing:.12em;
+                    text-transform:uppercase;color:#5A5A5A;padding:4px 6px 2px;">Moves</div>
+        <div id="pgn-table-wrap" style="max-height:180px;overflow-y:auto;padding:4px 6px;
+                                        background:rgba(242,230,208,.4);">
+          <table id="pgn-table" style="width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:.72rem;">
+            <tbody id="pgn-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    {# ── Charts ─────────────────────────────────────────────────────────── #}
+    <div style="display:flex;flex-direction:column;gap:16px;min-width:0;">
+      {% if has_lc0 %}
+      <div id="lc0-wdl-chart"></div>
+      {% endif %}
+      {% if has_sf %}
+      <div id="sf-eval-chart"></div>
+      {% endif %}
+    </div>
+
+  </div>{# end move-analysis grid #}
+</div>{# end pg-section #}
+
+{# Queue confirmation modal #}
+{% include "games/_queue_modal.html" %}
+
+{% endif %}{# end no_data else #}
+
+{% endblock %}
+
+{% block extra_js %}
+{% if not no_data %}
+
+{# JSON data embedded in page for chart and PGN rendering #}
+<script type="application/json" id="sf-eval-data">{{ sf_eval_json }}</script>
+<script type="application/json" id="lc0-wdl-data">{{ lc0_wdl_json }}</script>
+<script type="application/json" id="pgn-moves-data">{{ pgn_moves_json }}</script>
+
+<script src="{% static 'games/plySync.js' %}"></script>
+
+<script>
+// Shared analysis data for partials
+window.ANALYSIS_DATA = {
+  queue_url: "/_partials/games/{{ game.slug }}/queue/",
+  board_url: "/_partials/games/{{ game.slug }}/board/",
+  white: "{{ white|escapejs }}",
+  black: "{{ black|escapejs }}",
+  has_sf: {{ has_sf|yesno:"true,false" }},
+  has_lc0: {{ has_lc0|yesno:"true,false" }},
+};
+
+// Initialize shared ply state from URL
+WoodLeagueAnalysis.initFromUrl({
+  defaultPly: {{ initial_ply }},
+  defaultPerspective: "{{ initial_perspective }}",
+});
+
+// Flip board: update perspective and reload board partial via HTMX
+function flipBoard() {
+  var state = WoodLeagueAnalysis.getState();
+  var next = state.perspective === 'white' ? 'black' : 'white';
+  WoodLeagueAnalysis.setPerspective(next);
+  htmx.ajax('GET',
+    '/_partials/games/{{ game.slug }}/board/?orientation=' + next,
+    { target: '#board-container', swap: 'innerHTML' }
+  );
+}
+</script>
+
+{# PGN table rendering — draws move rows, highlights active ply #}
+<script>
+(function () {
+  var moves = JSON.parse(document.getElementById('pgn-moves-data').textContent || 'null') || [];
+  var tbody = document.getElementById('pgn-tbody');
+  var clsColor = {
+    brilliant: '#2C6B4A', best: '#4A6E8A', great: '#4A6554',
+    inaccuracy: '#E07B7B', mistake: '#CE3A4A', blunder: '#B53541',
+  };
+
+  // Build rows: one table row per move pair
+  var rowsByPly = {};
+  moves.forEach(function (m) {
+    rowsByPly[m.ply] = m;
+  });
+
+  var white_moves = moves.filter(function (m) { return m.color === 'white'; });
+  white_moves.forEach(function (wm) {
+    var bm = rowsByPly[wm.ply + 1];
+    var tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid #EDE0C4';
+
+    function makeCell(move) {
+      var td = document.createElement('td');
+      td.style.padding = '3px 5px';
+      td.style.cursor = 'pointer';
+      td.style.transition = 'background .1s';
+      td.dataset.ply = move.ply;
+      var cls = move.classification || '';
+      var clr = clsColor[cls] || '#1A1A1A';
+      td.innerHTML = '<span style="color:' + clr + ';font-weight:' + (cls ? '700' : '400') + '">' +
+        move.san + (cls ? ' <sup style="font-size:.5rem">' + cls.substring(0,3) + '</sup>' : '') +
+        '</span>';
+      td.onclick = function () {
+        WoodLeagueAnalysis.setPly(parseInt(this.dataset.ply));
+      };
+      td.onmouseenter = function () { this.style.background = 'rgba(212,168,67,.18)'; };
+      td.onmouseleave = function () { this.style.background = ''; };
+      return td;
+    }
+
+    var numTd = document.createElement('td');
+    numTd.style.cssText = 'color:#8B3A2A;font-size:.65rem;padding:3px 5px;white-space:nowrap;width:28px;';
+    numTd.textContent = wm.move_number + '.';
+    tr.appendChild(numTd);
+    tr.appendChild(makeCell(wm));
+    if (bm) tr.appendChild(makeCell(bm));
+    else tr.appendChild(document.createElement('td'));
+    tbody.appendChild(tr);
+  });
+
+  // Highlight active ply on state changes
+  WoodLeagueAnalysis.subscribe(function (state) {
+    tbody.querySelectorAll('td[data-ply]').forEach(function (td) {
+      var active = parseInt(td.dataset.ply) === state.ply;
+      td.style.background = active ? '#1A3A2A' : '';
+      td.style.color = active ? '#F2E6D0' : '';
+      if (active) {
+        td.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    });
+  });
+})();
+</script>
+
+{% if has_sf %}
+{# Stockfish evaluation bar chart #}
+<script>
+(function () {
+  var evalData = JSON.parse(document.getElementById('sf-eval-data').textContent || 'null');
+  if (!evalData || typeof Plotly === 'undefined') return;
+
+  var MATE_THRESHOLD = 9000, DISPLAY_CAP = 1200;
+  var points = evalData.map(function (d) {
+    var cp = Number(d.cp_eval || 0);
+    var isMate = Math.abs(cp) >= MATE_THRESHOLD;
+    var display = isMate ? (cp >= 0 ? DISPLAY_CAP : -DISPLAY_CAP)
+                         : Math.max(-DISPLAY_CAP, Math.min(DISPLAY_CAP, cp));
+    return { ply: Number(d.ply), cp: cp, display: display, san: d.san || '', cls: d.classification || '' };
+  });
+
+  // Perspective-aware colors: positive eval is good for the bottom player
+  function buildColors(perspective) {
+    return points.map(function (p) {
+      var isWhiteFav = p.display >= 0;
+      var bottomPlayerFav = perspective === 'white' ? isWhiteFav : !isWhiteFav;
+      return bottomPlayerFav ? '#D4A843' : '#8B3A2A';
+    });
+  }
+
+  var sfHighlight = {
+    x: [null, null], y: [-DISPLAY_CAP, DISPLAY_CAP],
+    mode: 'lines', showlegend: false, hoverinfo: 'skip',
+    line: { color: '#C17F24', width: 2, dash: 'dot' }
+  };
+
+  var sfDiv = document.getElementById('sf-eval-chart');
+  var sfHeight = Math.max(260, 180 + points.length * 5);
+
+  function buildTrace(perspective) {
+    return {
+      x: points.map(function (p) { return p.ply; }),
+      y: points.map(function (p) { return p.display; }),
+      type: 'bar',
+      marker: { color: buildColors(perspective) },
+      customdata: points.map(function (p) {
+        return [p.san, p.cp >= 0 ? '+' : '', (p.cp / 100).toFixed(2)];
+      }),
+      hovertemplate: 'Ply %{x}: %{customdata[0]} %{customdata[1]}%{customdata[2]} pawns<extra></extra>',
+      name: 'Eval', showlegend: false,
+    };
+  }
+
+  var layout = {
+    xaxis: { title: { text: 'Ply', font: { size: 11, color: '#1C1C1C', family: 'DM Mono,monospace' } }, zeroline: false, gridcolor: '#EDE0C4', tickfont: { size: 11, color: '#1C1C1C', family: 'DM Mono,monospace' } },
+    yaxis: { title: { text: 'Centipawns', font: { size: 11, color: '#1C1C1C', family: 'DM Mono,monospace' } }, zeroline: true, zerolinecolor: '#1A1A1A', gridcolor: '#EDE0C4', tickfont: { size: 11, color: '#1C1C1C', family: 'DM Mono,monospace' } },
+    margin: { l: 55, r: 20, t: 50, b: 50 }, height: sfHeight,
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(237,224,196,0.2)',
+    font: { color: '#1C1C1C', family: 'EB Garamond,serif' }, hovermode: 'x unified',
+    annotations: [{ text: 'Stockfish Evaluation', xref: 'paper', yref: 'paper', x: 0.5, y: 1.10, xanchor: 'center', showarrow: false, font: { size: 14, color: '#1A1A1A', family: 'Georgia,serif' } }],
+  };
+
+  var initPerspective = WoodLeagueAnalysis.getState().perspective;
+  Plotly.newPlot(sfDiv, [buildTrace(initPerspective), sfHighlight], layout, { displaylogo: false, responsive: true })
+    .then(function () {
+      sfDiv.on('plotly_click', function (d) {
+        if (d.points && d.points.length) WoodLeagueAnalysis.setPly(d.points[0].x);
+      });
+
+      WoodLeagueAnalysis.subscribe(function (state) {
+        Plotly.restyle(sfDiv, { x: [[state.ply, state.ply]], y: [[-DISPLAY_CAP, DISPLAY_CAP]] }, [1]);
+        // Flip colors on perspective change
+        Plotly.restyle(sfDiv, { 'marker.color': [buildColors(state.perspective)] }, [0]);
+      });
+    });
+})();
+</script>
 {% endif %}
 
+{% if has_lc0 %}
+{# Lc0 WDL stacked area chart #}
+<script>
+(function () {
+  var wdlData = JSON.parse(document.getElementById('lc0-wdl-data').textContent || 'null');
+  if (!wdlData || typeof Plotly === 'undefined') return;
+
+  var white = window.ANALYSIS_DATA ? window.ANALYSIS_DATA.white : "";
+  var black = window.ANALYSIS_DATA ? window.ANALYSIS_DATA.black : "";
+
+  var plies = wdlData.map(function (d) { return Number(d.ply); });
+
+  function buildTraces(perspective) {
+    // Flip win/loss traces when viewing from black's perspective
+    var wins = wdlData.map(function (d) { return Number(perspective === 'white' ? d.wdl_win : d.wdl_loss) / 10; });
+    var draws = wdlData.map(function (d) { return Number(d.wdl_draw) / 10; });
+    var losses = wdlData.map(function (d) { return Number(perspective === 'white' ? d.wdl_loss : d.wdl_win) / 10; });
+    var topLabel = perspective === 'white' ? ('♙ ' + white + ' Win') : ('♟ ' + black + ' Win');
+    var botLabel = perspective === 'white' ? ('♟ ' + black + ' Win') : ('♙ ' + white + ' Win');
+    return [
+      { x: plies, y: wins, name: topLabel, type: 'scatter', mode: 'lines', stackgroup: 'wdl', fill: 'tozeroy', fillcolor: 'rgba(242,230,208,0.90)', line: { color: '#D4C4A0', width: 1.5 }, hovertemplate: topLabel + ': %{y:.1f}%<extra></extra>' },
+      { x: plies, y: draws, name: 'Draw', type: 'scatter', mode: 'lines', stackgroup: 'wdl', fill: 'tonexty', fillcolor: 'rgba(139,58,42,0.50)', line: { color: '#8B3A2A', width: 1 }, hovertemplate: 'Draw: %{y:.1f}%<extra></extra>' },
+      { x: plies, y: losses, name: botLabel, type: 'scatter', mode: 'lines', stackgroup: 'wdl', fill: 'tonexty', fillcolor: 'rgba(26,26,26,0.85)', line: { color: '#1A1A1A', width: 1.5 }, hovertemplate: botLabel + ': %{y:.1f}%<extra></extra>' },
+    ];
+  }
+
+  var wdlHighlight = { x: [null, null], y: [0, 100], mode: 'lines', showlegend: false, hoverinfo: 'skip', line: { color: '#C17F24', width: 2, dash: 'dot' } };
+  var wdlDiv = document.getElementById('lc0-wdl-chart');
+  var wdlHeight = Math.max(240, 160 + wdlData.length * 4);
+
+  var layout = {
+    xaxis: { title: { text: 'Ply', font: { size: 11, color: '#1C1C1C', family: 'DM Mono,monospace' } }, zeroline: false, gridcolor: '#EDE0C4', tickfont: { size: 11, color: '#1C1C1C', family: 'DM Mono,monospace' } },
+    yaxis: { title: { text: 'Win / Draw / Loss (%)', font: { size: 11, color: '#1C1C1C', family: 'DM Mono,monospace' } }, range: [0, 100], ticksuffix: '%', gridcolor: '#EDE0C4', tickfont: { size: 11, color: '#1C1C1C', family: 'DM Mono,monospace' } },
+    legend: { orientation: 'h', y: -0.22, font: { color: '#1C1C1C', family: 'EB Garamond,serif', size: 12 }, bgcolor: 'rgba(0,0,0,0)' },
+    margin: { l: 55, r: 20, t: 56, b: 60 }, height: wdlHeight,
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(237,224,196,0.2)',
+    font: { color: '#1C1C1C', family: 'EB Garamond,serif' }, hovermode: 'x unified',
+    annotations: [{ text: 'Lc0 Win / Draw / Loss', xref: 'paper', yref: 'paper', x: 0.5, y: 1.13, xanchor: 'center', showarrow: false, font: { size: 14, color: '#1A1A1A', family: 'Georgia,serif' } }],
+  };
+
+  var initPerspective = WoodLeagueAnalysis.getState().perspective;
+  var initTraces = buildTraces(initPerspective).concat([wdlHighlight]);
+
+  Plotly.newPlot(wdlDiv, initTraces, layout, { displaylogo: false, responsive: true })
+    .then(function () {
+      wdlDiv.on('plotly_click', function (d) {
+        if (d.points && d.points.length) WoodLeagueAnalysis.setPly(d.points[0].x);
+      });
+
+      WoodLeagueAnalysis.subscribe(function (state) {
+        // Update highlight position
+        Plotly.restyle(wdlDiv, { x: [[state.ply, state.ply]], y: [[0, 100]] }, [3]);
+        // Rebuild all traces for perspective flip
+        var newTraces = buildTraces(state.perspective);
+        Plotly.restyle(wdlDiv, {
+          y: [newTraces[0].y, newTraces[1].y, newTraces[2].y],
+          name: [newTraces[0].name, newTraces[1].name, newTraces[2].name],
+        }, [0, 1, 2]);
+      });
+    });
+})();
+</script>
+{% endif %}
+
+{% endif %}{# end not no_data #}
 {% endblock %}

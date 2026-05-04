@@ -1,4 +1,13 @@
-"""Services for retrieving and assembling game analysis data from multiple sources."""
+"""
+Title: services.py — Game analysis data assembly service
+Description:
+    Loads and assembles complete game analysis data from Stockfish and Lc0
+    database records into a single GameAnalysisData dataclass for use by
+    views and template rendering utilities.
+
+Changelog:
+    2026-05-04 (#16): Added opening_id field for linking to opening detail page
+"""
 
 from __future__ import annotations
 
@@ -9,6 +18,7 @@ import chess.pgn
 
 from analysis.models import GameAnalysis, Lc0GameAnalysis
 from games.models import Game
+from openings.models import OpeningBook
 
 
 @dataclass
@@ -78,6 +88,7 @@ class GameAnalysisData:
     eco_code: str = ""
     opening_name: str = ""
     lichess_opening: str | None = None
+    opening_id: int | None = None
 
     @property
     def has_sf(self) -> bool:
@@ -126,6 +137,13 @@ def get_game_analysis(slug: str) -> GameAnalysisData | None:
         date = db_game.played_at.strftime("%Y-%m-%d %H:%M")
     if not date:
         date = game.headers.get("Date", "")
+
+    eco_code = db_game.eco_code or ""
+    opening_name = db_game.opening_name or ""
+
+    opening_id = None
+    if eco_code:
+        opening_id = OpeningBook.objects.filter(eco=eco_code).values_list("id", flat=True).first()
 
     lga = _load_lc0(db_game)
     lc0_moves = _lc0_move_rows(lga)
@@ -176,9 +194,10 @@ def get_game_analysis(slug: str) -> GameAnalysisData | None:
             white_rating=db_game.white_rating,
             black_rating=db_game.black_rating,
             lc0_moves=lc0_moves,
-            eco_code=db_game.eco_code or "",
-            opening_name=db_game.opening_name or "",
+            eco_code=eco_code,
+            opening_name=opening_name,
             lichess_opening=db_game.lichess_opening,
+            opening_id=opening_id,
             **lc0_kwargs,
         )
 
@@ -218,9 +237,10 @@ def get_game_analysis(slug: str) -> GameAnalysisData | None:
         white_rating=db_game.white_rating,
         black_rating=db_game.black_rating,
         lc0_moves=lc0_moves,
-        eco_code=db_game.eco_code or "",
-        opening_name=db_game.opening_name or "",
+        eco_code=eco_code,
+        opening_name=opening_name,
         lichess_opening=db_game.lichess_opening,
+        opening_id=opening_id,
         **lc0_kwargs,
     )
 
