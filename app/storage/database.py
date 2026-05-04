@@ -1,3 +1,7 @@
+"""Database connection and session management using SQLAlchemy.
+
+Provides database engine, session factory, and initialization utilities for the Wood League application.
+"""
 import threading
 
 from sqlalchemy import create_engine
@@ -11,6 +15,7 @@ settings = get_settings()
 
 
 def _normalize_database_url(database_url: str) -> str:
+    """Normalize PostgreSQL URLs to use the psycopg driver."""
     if database_url.startswith("postgresql+psycopg://"):
         return database_url
     if database_url.startswith("postgresql://"):
@@ -21,6 +26,7 @@ def _normalize_database_url(database_url: str) -> str:
 
 
 def _engine():
+    """Create the SQLAlchemy engine using configured database URL or SQLite fallback."""
     if settings.database_url:
         return create_engine(_normalize_database_url(settings.database_url), pool_pre_ping=True)
     return create_engine("sqlite+pysqlite:///wood_league_chess.db", pool_pre_ping=True)
@@ -45,4 +51,5 @@ def init_db() -> None:
 
 
 def get_session() -> Session:
+    """Create and return a new database session."""
     return SessionLocal()

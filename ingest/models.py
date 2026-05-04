@@ -1,7 +1,11 @@
+"""Data models for the ingest app."""
+
 from django.db import models
 
 
 class SystemEvent(models.Model):
+    """Track system events like game sync and analysis job execution."""
+
     event_type = models.CharField(max_length=32, db_index=True)
     status = models.CharField(max_length=16, db_index=True)
     started_at = models.DateTimeField(auto_now_add=True, db_index=True)
@@ -17,4 +21,5 @@ class SystemEvent(models.Model):
         verbose_name_plural = "System Events"
 
     def __str__(self):
+        """Return human-readable event description."""
         return f"{self.event_type} [{self.status}] at {self.started_at:%Y-%m-%d %H:%M}"

@@ -22,6 +22,8 @@ MAX_RESULTS = 200
 
 @dataclass(frozen=True)
 class SearchPlan:
+    """Result of AI-generated search plan containing SQL query and reasoning."""
+
     sql_query: str
     reasoning: str = ""
     raw_response: str = ""
@@ -29,6 +31,8 @@ class SearchPlan:
 
 
 class SearchPlanError(ValueError):
+    """Exception raised when AI search plan generation or validation fails."""
+
     def __init__(
         self,
         message: str,
@@ -37,6 +41,7 @@ class SearchPlanError(ValueError):
         reasoning: str = "",
         candidate_sql: str = "",
     ):
+        """Initialize SearchPlanError with message and optional debug fields."""
         super().__init__(message)
         self.raw_response = raw_response
         self.reasoning = reasoning
@@ -45,6 +50,7 @@ class SearchPlanError(ValueError):
 
 @lru_cache(maxsize=1)
 def _schema_context() -> str:
+    """Return cached database schema context for AI SQL generation."""
     return """
 You convert natural-language game search requests into safe PostgreSQL SELECT queries.
 Return JSON only with keys: sql_query, reasoning.
@@ -164,6 +170,7 @@ Ruy Lopez, Petrov's Defense, English Opening, King's Indian Attack
 
 
 def _player_directory_context() -> str:
+    """Build list of club players for AI prompt context."""
     rows = Player.objects.values("username", "display_name").order_by("username")[:100]
     if not rows:
         return "Known club players: none loaded."
@@ -185,10 +192,12 @@ def _player_directory_context() -> str:
 
 
 def is_ai_available() -> bool:
+    """Check if Anthropic API key is configured."""
     return bool(getattr(settings, "ANTHROPIC_API_KEY", "").strip())
 
 
 def _extract_text(response_json: dict) -> str:
+    """Extract text content from Anthropic API response."""
     return "\n".join(
         item.get("text", "")
         for item in response_json.get("content", [])
@@ -197,6 +206,7 @@ def _extract_text(response_json: dict) -> str:
 
 
 def _extract_json(raw_text: str) -> dict:
+    """Parse JSON from Claude response, handling markdown code blocks."""
     cleaned = raw_text.strip()
     if cleaned.startswith("```"):
         cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
@@ -208,6 +218,7 @@ def _extract_json(raw_text: str) -> dict:
 
 
 def _sanitize_sql(candidate_sql: str) -> str:
+    """Validate and sanitize SQL query to prevent injection and unsafe operations."""
     if not candidate_sql:
         raise ValueError("No SQL was generated.")
     sql = candidate_sql.strip()
@@ -257,6 +268,7 @@ def _sanitize_sql(candidate_sql: str) -> str:
 
 
 def generate_search_plan(user_query: str) -> SearchPlan:
+    """Generate SQL search plan using Claude AI from natural language query."""
     query = user_query.strip()
     if not query:
         raise ValueError("Please enter a search query.")
@@ -316,6 +328,7 @@ def generate_search_plan(user_query: str) -> SearchPlan:
 
 
 def execute_sql_search(sql_query: str) -> list[dict[str, Any]]:
+    """Execute sanitized SQL query and return results as list of dictionaries."""
     safe_sql = _sanitize_sql(sql_query)
     with connection.cursor() as cursor:
         cursor.execute(safe_sql)
@@ -324,6 +337,7 @@ def execute_sql_search(sql_query: str) -> list[dict[str, Any]]:
 
 
 def keyword_game_search(query: str, limit: int = 200) -> list[dict[str, Any]]:
+    """Search games by keyword in players, openings, and time controls."""
     q = query.strip()
     if not q:
         return []

@@ -17,6 +17,7 @@ log = logging.getLogger(__name__)
 
 
 def _enqueue_all(nodes: int) -> None:
+    """Enqueue lc0 analysis jobs for all games without existing lc0 jobs."""
     from sqlalchemy import select
     init_db()
     with get_session() as session:
@@ -37,6 +38,7 @@ def _enqueue_all(nodes: int) -> None:
 
 
 def main() -> None:
+    """CLI entry point: parse arguments and run the Lc0 analysis worker or enqueue jobs."""
     settings = get_settings()
     parser = argparse.ArgumentParser(description="Lc0 WDL analysis worker")
     parser.add_argument("--lc0-path", default=settings.lc0_path)

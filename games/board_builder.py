@@ -464,12 +464,14 @@ def build_board_viewer_html(
 
 
 def _inject_arrow_labels(svg: str, labels: list[dict], size: int, flipped: bool) -> str:
+    """Inject evaluation labels on top of move arrows in the SVG board."""
     if not labels or not svg:
         return svg
     _MARGIN = 15
     _SQ = 45
 
     def sq_to_px(sq: str) -> tuple[float, float]:
+        """Convert square coordinate (e.g., 'e4') to pixel position."""
         if not sq or len(sq) < 2:
             return (0.0, 0.0)
         try:

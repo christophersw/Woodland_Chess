@@ -1,3 +1,5 @@
+"""Dashboard views and HTMX partial endpoints."""
+
 from __future__ import annotations
 
 import json
@@ -21,6 +23,7 @@ _DEFAULT_DAYS = 90
 
 
 def _parse_filter_params(request: HttpRequest) -> tuple[int, list[str] | None]:
+    """Extract lookback days and player list from query parameters."""
     days = _TIMEFRAMES.get(request.GET.get("days", ""), _DEFAULT_DAYS)
     raw_players = request.GET.get("players", "").strip()
     players = [p.strip() for p in raw_players.split(",") if p.strip()] or None
@@ -28,14 +31,17 @@ def _parse_filter_params(request: HttpRequest) -> tuple[int, list[str] | None]:
 
 
 def _fmt_accuracy(value: float | None) -> str:
+    """Format accuracy value as a percentage string."""
     return f"{value:.1f}%" if value is not None else "—"
 
 
 def _fmt_acpl(value: float | None) -> str:
+    """Format centipawn loss value as a string."""
     return f"{value:.1f}" if value is not None else "—"
 
 
 def _fmt_last_ingest(event: dict | None) -> str:
+    """Format the timestamp of the last ingest event as a readable string."""
     if event is None:
         return "Never"
     ts = event.get("completed_at") or event.get("started_at")
@@ -48,6 +54,7 @@ def _fmt_last_ingest(event: dict | None) -> str:
 
 @login_required
 def index(request: HttpRequest) -> HttpResponse:
+    """Render the main dashboard page with recent games and chart placeholders."""
     all_members = services.get_club_member_names()
     last_ingest = services.get_last_system_event("ingest")
     recent_games = services.get_most_recent_games(limit=10)
@@ -71,6 +78,7 @@ def index(request: HttpRequest) -> HttpResponse:
 @login_required
 @require_GET
 def accuracy_chart_partial(request: HttpRequest) -> HttpResponse:
+    """Return HTML partial with accuracy timeseries Plotly chart."""
     days, players = _parse_filter_params(request)
     df = services.get_player_accuracy_timeseries(lookback_days=days, players=players)
 
@@ -88,6 +96,7 @@ def accuracy_chart_partial(request: HttpRequest) -> HttpResponse:
 @login_required
 @require_GET
 def elo_chart_partial(request: HttpRequest) -> HttpResponse:
+    """Return HTML partial with ELO rating timeseries Plotly chart."""
     days, players = _parse_filter_params(request)
     df = services.get_all_players_elo_timeseries(lookback_days=days, players=players)
 
@@ -105,6 +114,7 @@ def elo_chart_partial(request: HttpRequest) -> HttpResponse:
 @login_required
 @require_GET
 def sankey_partial(request: HttpRequest) -> HttpResponse:
+    """Return HTML partial with opening moves Sankey diagram."""
     days, players = _parse_filter_params(request)
     edges_df, node_stats_df = services.get_opening_flow(
         lookback_days=days, players=players, min_games=2
@@ -147,6 +157,7 @@ def sankey_partial(request: HttpRequest) -> HttpResponse:
 @login_required
 @require_POST
 def opening_node_stats_partial(request: HttpRequest) -> HttpResponse:
+    """Return HTML partial with statistics for a selected opening node."""
     days, players = _parse_filter_params(request)
     node_label = request.POST.get("node", "").strip()
 
@@ -169,6 +180,7 @@ def opening_node_stats_partial(request: HttpRequest) -> HttpResponse:
 @login_required
 @require_GET
 def best_recent_partial(request: HttpRequest) -> HttpResponse:
+    """Return HTML partial with highest-accuracy games from recent period."""
     days, players = _parse_filter_params(request)
     games = services.get_best_recent_games_by_accuracy(limit=10, lookback_days=30)
     if players:
@@ -187,6 +199,7 @@ def best_recent_partial(request: HttpRequest) -> HttpResponse:
 @login_required
 @require_GET
 def best_alltime_partial(request: HttpRequest) -> HttpResponse:
+    """Return HTML partial with lowest-ACPL games from all time."""
     games = services.get_best_all_time_games_by_acpl(limit=10)
     return render(request, "dashboard/partials/best_games_table.html", {
         "games": games,

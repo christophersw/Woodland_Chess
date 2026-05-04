@@ -1,3 +1,4 @@
+"""Views for displaying game analysis status and job queue metrics."""
 from __future__ import annotations
 
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -11,10 +12,12 @@ _admin_required = user_passes_test(lambda u: u.role == "admin")
 
 
 def _admin_login_required(view):
+    """Decorator to require both login and admin role."""
     return login_required(_admin_required(view))
 
 
 def _engine_metric(rows: list[dict], engine: str, status: str) -> int:
+    """Extract job count for a specific engine and status from aggregated data."""
     for r in rows:
         if r["engine"] == engine and r["status"] == status:
             return r["count"]
@@ -22,6 +25,7 @@ def _engine_metric(rows: list[dict], engine: str, status: str) -> int:
 
 
 def _queue_context() -> dict:
+    """Build context data for analysis queue status display including worker health."""
     totals = services.queue_totals()
     by_engine = services.queue_by_engine()
     total = sum(totals.values())
@@ -51,6 +55,7 @@ def _queue_context() -> dict:
 @_admin_login_required
 @require_GET
 def status(request: HttpRequest) -> HttpResponse:
+    """Render the analysis status dashboard with queue and worker metrics."""
     jobs = services.recent_jobs(100)
     return render(request, "analysis/status.html", {
         "jobs": jobs,
@@ -61,4 +66,5 @@ def status(request: HttpRequest) -> HttpResponse:
 @_admin_login_required
 @require_GET
 def queue_partial(request: HttpRequest) -> HttpResponse:
+    """Render an HTMX partial showing the current analysis queue snapshot."""
     return render(request, "analysis/_queue_partial.html", _queue_context())

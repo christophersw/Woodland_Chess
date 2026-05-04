@@ -29,6 +29,7 @@ _GP_TITLE = "Playfair Display SC, Cormorant Garamond, Georgia, serif"
 
 
 def _gp_layout(**overrides) -> dict:
+    """Return Du Bois-styled Plotly layout with optional overrides."""
     base: dict = dict(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(242,230,208,0.5)",
@@ -66,6 +67,7 @@ def opening_share_pie(
     opening_name: str,
     scope_label: str | None = None,
 ) -> go.Figure:
+    """Return a pie chart showing share of opening position in scoped games."""
     if share_df.empty:
         return go.Figure()
 
@@ -100,6 +102,7 @@ def opening_player_accuracy_bar(
     opening_name: str,
     scope_label: str | None = None,
 ) -> go.Figure:
+    """Return a horizontal bar chart of average accuracy by player in an opening."""
     df = stats_df.dropna(subset=["avg_accuracy"]).copy()
     if df.empty:
         return go.Figure()
@@ -142,6 +145,7 @@ def opening_frequency_trend(
     opening_name: str,
     scope_label: str | None = None,
 ) -> go.Figure:
+    """Return a line chart showing opening frequency over time by player."""
     if freq_df.empty:
         return go.Figure()
 

@@ -1,3 +1,5 @@
+"""Services for retrieving and assembling game analysis data from multiple sources."""
+
 from __future__ import annotations
 
 import io
@@ -11,6 +13,7 @@ from games.models import Game
 
 @dataclass
 class MoveRow:
+    """Container for a single move's analysis from engine evaluation."""
     ply: int
     san: str
     fen: str
@@ -33,6 +36,8 @@ class MoveRow:
 
 @dataclass
 class GameAnalysisData:
+    """Complete game analysis data aggregated from Stockfish and Lc0 analysis."""
+
     game_id: str
     white: str
     black: str
@@ -76,26 +81,31 @@ class GameAnalysisData:
 
     @property
     def has_sf(self) -> bool:
+        """True if Stockfish analysis is available."""
         return self.white_accuracy is not None or self.white_acpl is not None
 
     @property
     def has_lc0(self) -> bool:
+        """True if Lc0 neural network analysis is available."""
         return self.lc0_moves is not None and len(self.lc0_moves) > 0
 
     @property
     def white_label(self) -> str:
+        """Return white player name with rating if available."""
         if self.white_rating:
             return f"{self.white} ({self.white_rating})"
         return self.white
 
     @property
     def black_label(self) -> str:
+        """Return black player name with rating if available."""
         if self.black_rating:
             return f"{self.black} ({self.black_rating})"
         return self.black
 
 
 def get_game_analysis(slug: str) -> GameAnalysisData | None:
+    """Load and assemble game analysis from Stockfish and Lc0 sources, or None if not found."""
     try:
         db_game = Game.objects.select_related().get(slug=slug)
     except Game.DoesNotExist:
@@ -216,6 +226,7 @@ def get_game_analysis(slug: str) -> GameAnalysisData | None:
 
 
 def _load_sf(db_game: Game) -> GameAnalysis | None:
+    """Load Stockfish analysis for a game or return None if not analyzed."""
     try:
         return db_game.analysis
     except GameAnalysis.DoesNotExist:
@@ -223,6 +234,7 @@ def _load_sf(db_game: Game) -> GameAnalysis | None:
 
 
 def _load_lc0(db_game: Game) -> Lc0GameAnalysis | None:
+    """Load Lc0 analysis for a game or return None if not analyzed."""
     try:
         lga = db_game.lc0_analysis
         if lga.analyzed_at is None:
@@ -233,6 +245,7 @@ def _load_lc0(db_game: Game) -> Lc0GameAnalysis | None:
 
 
 def _lc0_move_rows(lga: Lc0GameAnalysis | None) -> list[MoveRow] | None:
+    """Convert Lc0 analysis moves to MoveRow objects, or None if no analysis."""
     if lga is None:
         return None
     return [
@@ -259,6 +272,7 @@ def _lc0_move_rows(lga: Lc0GameAnalysis | None) -> list[MoveRow] | None:
 
 
 def _lc0_summary_kwargs(lga: Lc0GameAnalysis | None) -> dict:
+    """Build a dict of Lc0 summary stats for GameAnalysisData initialization."""
     if lga is None:
         return {
             "lc0_white_win_prob": None,

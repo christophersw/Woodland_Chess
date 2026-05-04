@@ -24,7 +24,7 @@ from players.models import Player
 
 @lru_cache(maxsize=1)
 def _load_book() -> dict[str, tuple[str, str]]:
-    """EPD → (eco, name). Loaded once per process."""
+    """Load and cache opening book EPD→(eco, name) mapping once per process."""
     return {
         row["epd"]: (row["eco"], row["name"])
         for row in OpeningBook.objects.values("epd", "eco", "name")
@@ -33,7 +33,7 @@ def _load_book() -> dict[str, tuple[str, str]]:
 
 @lru_cache(maxsize=1)
 def _load_book_entries() -> dict[str, tuple[int, str, str]]:
-    """EPD → (id, eco, name). Loaded once per process."""
+    """Load and cache opening book EPD→(id, eco, name) mapping once per process."""
     return {
         row["epd"]: (row["id"], row["eco"], row["name"])
         for row in OpeningBook.objects.values("id", "epd", "eco", "name")
@@ -63,6 +63,7 @@ _BOARD_COLORS = {
 # ── Opening metadata ──────────────────────────────────────────────────────────
 
 def _parse_opening_pgn(pgn_text: str) -> tuple[chess.Board, int]:
+    """Parse PGN text and return final board and ply depth."""
     board = chess.Board()
     for token in pgn_text.split():
         token = token.rstrip(".")
@@ -76,6 +77,7 @@ def _parse_opening_pgn(pgn_text: str) -> tuple[chess.Board, int]:
 
 
 def get_opening(opening_id: int) -> dict | None:
+    """Retrieve opening by ID with ECO code, name, PGN, EPD, and final FEN."""
     try:
         ob = OpeningBook.objects.get(pk=opening_id)
     except OpeningBook.DoesNotExist:
@@ -93,6 +95,7 @@ def get_opening(opening_id: int) -> dict | None:
 
 
 def search_openings(query: str, limit: int = 30) -> list[dict]:
+    """Search openings by name substring and return matching openings up to limit."""
     qs = (
         OpeningBook.objects
         .filter(name__icontains=query)
@@ -137,6 +140,7 @@ def get_games(
     seen_game_epd: dict[str, bool] = {}
 
     def _matches(pgn_text: str, gid: str) -> bool:
+        """Check if game PGN passes through the target opening position."""
         if gid in seen_game_epd:
             return seen_game_epd[gid]
         try:
@@ -246,6 +250,7 @@ def opening_share(
     lookback_days: int | None = 90,
     players: list[str] | None = None,
 ) -> pd.DataFrame:
+    """Return pie chart data showing opening position share within scoped games."""
     this_opening_games = int(games_df["game_id"].nunique()) if not games_df.empty else 0
     total_scoped_games = _scoped_unique_game_count(lookback_days=lookback_days, players=players)
 
@@ -263,6 +268,7 @@ def _scoped_unique_game_count(
     lookback_days: int | None,
     players: list[str] | None,
 ) -> int:
+    """Count unique games matching scope filters (date and player)."""
     floor_date = (
         datetime.now(tz=timezone.utc) - timedelta(days=lookback_days)
         if lookback_days is not None
@@ -286,6 +292,7 @@ def _scoped_unique_game_count(
 # ── Frequency over time ───────────────────────────────────────────────────────
 
 def frequency_over_time(games_df: pd.DataFrame) -> pd.DataFrame:
+    """Return opening frequency trend by player and month."""
     if games_df.empty:
         return pd.DataFrame(columns=["month", "player", "games"])
 
@@ -313,6 +320,7 @@ def continuation_flow(
     opening: dict,
     min_games: int = 2,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Compute Sankey flow edges and node statistics from opening continuations."""
     if games_df.empty:
         return pd.DataFrame(), pd.DataFrame()
 
@@ -458,6 +466,7 @@ def opening_tree_context(
     players: list[str] | None = None,
     max_children: int = 8,
 ) -> dict:
+    """Build opening lineage and continuation context for tree visualization."""
     scoped_games = _scoped_games(lookback_days=lookback_days, players=players)
 
     total_scoped_games = int(scoped_games["game_id"].nunique()) if not scoped_games.empty else 0
@@ -558,6 +567,7 @@ def opening_tree_context(
 
 
 def _lineage_for_opening(opening: dict) -> list[dict]:
+    """Extract sequence of intermediate openings from opening PGN."""
     board = chess.Board()
     nodes: list[dict] = []
     seen_epds: set[str] = set()
@@ -605,6 +615,7 @@ def _scoped_games(
     lookback_days: int | None,
     players: list[str] | None,
 ) -> pd.DataFrame:
+    """Retrieve games matching scope filters (date and player) with PGN and metadata."""
     floor_date = (
         datetime.now(tz=timezone.utc) - timedelta(days=lookback_days)
         if lookback_days is not None
@@ -648,7 +659,7 @@ import base64  # noqa: E402  (import after stdlib section is fine for clarity)
 
 
 def opening_tree_svg(tree_ctx: dict, opening_epd: str) -> tuple[str, int]:
-    """Return (svg_html_string, height_px) for the opening tree visualization."""
+    """Render opening tree (lineage and continuations) as SVG with coordinates."""
     import chess.svg as _chess_svg
 
     lineage = tree_ctx.get("lineage", [])
@@ -666,6 +677,7 @@ def opening_tree_svg(tree_ctx: dict, opening_epd: str) -> tuple[str, int]:
     PAD = 22
 
     def _board_img_href(fen: str | None) -> str | None:
+        """Encode board position as base64-embedded SVG data URL."""
         if not fen:
             return None
         try:
@@ -697,12 +709,15 @@ def opening_tree_svg(tree_ctx: dict, opening_epd: str) -> tuple[str, int]:
     max_g = raw_max if raw_max > 0 else 1
 
     def _sw(g: int) -> float:
+        """Calculate stroke width based on game count."""
         return max(1.5, min(10.0, 1.5 + (g / max_g) * 8.5))
 
     def _so(g: int) -> float:
+        """Calculate stroke opacity based on game count."""
         return max(0.2, min(0.95, 0.2 + (g / max_g) * 0.75))
 
     def _wrap(text: str, max_chars: int = 20) -> list[str]:
+        """Wrap text to max width with word boundaries, up to 2 lines."""
         words, lines, cur = text.split(), [], ""
         for w in words:
             if cur and len(cur) + 1 + len(w) > max_chars:
@@ -756,6 +771,7 @@ def opening_tree_svg(tree_ctx: dict, opening_epd: str) -> tuple[str, int]:
         )
 
     def _node(node: dict, x: float, y: float, *, is_current: bool = False, is_child: bool = False) -> None:
+        """Render a single opening node as SVG group with board image and text labels."""
         oid = node.get("opening_id")
         eco = str(node.get("eco") or "").upper()
         raw_name = str(node.get("name") or "Unknown")

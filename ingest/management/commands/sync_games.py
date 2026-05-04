@@ -14,9 +14,12 @@ _SCRIPT = Path(__file__).resolve().parents[3] / "app" / "ingest" / "run_sync.py"
 
 
 class Command(BaseCommand):
+    """Django management command to sync Chess.com games for club members."""
+
     help = "Sync games from Chess.com for all (or specified) club members."
 
     def add_arguments(self, parser):
+        """Register command-line arguments."""
         parser.add_argument(
             "usernames",
             nargs="*",
@@ -30,6 +33,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        """Execute game sync for specified or all club members."""
         usernames = options["usernames"] or list(
             Player.objects.values_list("username", flat=True)
         )

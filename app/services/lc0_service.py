@@ -40,6 +40,7 @@ _GREAT_ALT_DELTA = 6.0  # alternatives ≥6% worse for !
 
 @dataclass
 class Lc0MoveResult:
+    """Per-move Lc0 analysis result with WDL, centipawn equivalent, and classification."""
     ply: int
     san: str
     fen: str
@@ -64,6 +65,7 @@ class Lc0MoveResult:
 
 @dataclass
 class Lc0PlayerStats:
+    """Aggregate player statistics from Lc0 analysis: WDL probabilities and move quality counts."""
     # Average final-position WDL from this player's perspective (0-100%)
     avg_win_prob: float
     avg_draw_prob: float
@@ -75,6 +77,7 @@ class Lc0PlayerStats:
 
 @dataclass
 class Lc0GameResult:
+    """Complete Lc0 analysis result for a game with per-move and per-player stats."""
     white_stats: Lc0PlayerStats
     black_stats: Lc0PlayerStats
     moves: list[Lc0MoveResult]
@@ -96,6 +99,7 @@ def _q_to_cp(q: float) -> float:
 def _wdl_to_win_pct(
     wdl_win: int, wdl_draw: int, wdl_loss: int, as_white: bool
 ) -> float:
+    """Convert WDL permille to win percentage from side's perspective."""
     """Return mover's win% (0-100) from white-perspective WDL permille values."""
     if as_white:
         return wdl_win / 10.0
@@ -104,6 +108,7 @@ def _wdl_to_win_pct(
 
 
 def _extract_wdl(info: chess.engine.InfoDict) -> tuple[int, int, int]:
+    """Extract and normalize WDL permille from engine info; fallback to Q-derived estimate."""
     """Extract WDL permille from engine info. Returns (win, draw, loss) white-perspective."""
     wdl = info.get("wdl")
     if wdl is not None:
@@ -135,6 +140,7 @@ def _classify(
     alt_win_delta: float | None,
     is_capture: bool,
 ) -> str:
+    """Classify move quality: blunder, mistake, inaccuracy, brilliant, great, best, or excellent."""
     if win_delta >= _BLUNDER_WP_LOSS:
         return "blunder"
     if win_delta >= _MISTAKE_WP_LOSS:

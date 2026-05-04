@@ -29,6 +29,7 @@ log = logging.getLogger(__name__)
 
 
 def _find_stockfish(given: str) -> str:
+    """Search for Stockfish binary in system PATH or common installation directories."""
     if given:
         return given
     found = shutil.which("stockfish")
@@ -42,6 +43,7 @@ def _find_stockfish(given: str) -> str:
 
 
 def main() -> None:
+    """CLI entry point: parse arguments and run the Stockfish analysis worker or enqueue jobs."""
     from app.config import get_settings
 
     settings = get_settings()

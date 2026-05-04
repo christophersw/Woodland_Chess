@@ -1,3 +1,7 @@
+"""URL routing configuration for the Django application.
+
+Maps URL paths to app-specific URL handlers and includes admin, authentication, and HTMX partial views.
+"""
 from django.contrib import admin
 from django.urls import include, path
 

@@ -1,3 +1,5 @@
+"""Views for game search interface (AI-powered and keyword search)."""
+
 import io
 import json
 
@@ -18,6 +20,7 @@ from search.services import (
 
 
 def search_index(request):
+    """Render search page with AI availability status."""
     return render(request, "search/index.html", {
         "ai_available": is_ai_available(),
     })
@@ -25,6 +28,7 @@ def search_index(request):
 
 @require_POST
 def ai_search_partial(request):
+    """Execute AI-generated SQL search from natural language query (HTMX partial)."""
     query = request.POST.get("query", "").strip()
     if not query:
         return render(request, "search/partials/results.html", {
@@ -55,6 +59,7 @@ def ai_search_partial(request):
 
 @require_POST
 def keyword_search_partial(request):
+    """Search games by keyword in player names and opening names (HTMX partial)."""
     query = request.POST.get("query", "").strip()
     if not query:
         return render(request, "search/partials/results.html", {
@@ -66,6 +71,7 @@ def keyword_search_partial(request):
 
 
 def board_preview_partial(request, game_id):
+    """Render animated board preview for a single game (HTMX partial)."""
     try:
         game = Game.objects.get(id=game_id)
     except Game.DoesNotExist:
@@ -100,6 +106,7 @@ def _normalise(rows: list[dict]) -> list[dict]:
 
 
 def _board_animation_html(pgn_text: str, interval_ms: int = 700) -> str:
+    """Generate interactive animated board HTML with SVG frames from PGN."""
     if not pgn_text:
         return ""
     game = chess.pgn.read_game(io.StringIO(pgn_text))

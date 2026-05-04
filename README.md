@@ -1,14 +1,14 @@
 # Wood League Chess
 
-Wood League Chess is a multi-repo chess analysis system built around a Streamlit app, a shared PostgreSQL database, a Railway dispatcher, and two RunPod workers.
+Wood League Chess is a private chess club analytics platform built with Django, Tailwind CSS v4, and HTMX. It ingests games from Chess.com, runs them through Stockfish and Lc0 engine workers, and surfaces club-wide trends, per-game analysis, opening statistics, and AI-powered game search.
 
-This repository, `wood_league_app`, is the user-facing web app. It renders club history, game analysis, opening pages, search, and status views from data produced by the ingest and engine-analysis pipeline.
+This repository, `wood_league_app`, is the user-facing Django web app. It serves club history, game analysis, opening pages, search, and admin views from data produced by the ingest and engine-analysis pipeline.
 
 ## Repos at a Glance
 
 | Repo | Purpose |
 |---|---|
-| [`wood_league_app`](.) | Streamlit web app, Alembic migrations, app models, pages, and UI |
+| [`wood_league_app`](.) | Django web app (this repo) — views, templates, models, ingest management commands |
 | [`wood_league_dispatchers`](../wood_league_dispatchers/README.md) | Railway dispatcher for Chess.com ingest and RunPod job submission |
 | [`wood_league_stockfish_runpod`](../wood_league_stockfish_runpod/README.md) | RunPod Stockfish worker that writes `game_analysis` and `move_analysis` |
 | [`wood_league_lc0_runpod`](../wood_league_lc0_runpod/README.md) | RunPod Lc0 worker that writes `lc0_game_analysis` and `lc0_move_analysis` |
@@ -26,16 +26,30 @@ flowchart LR
   F --> H[wood_league_lc0_runpod\nRunPod worker]
   G --> C
   H --> C
-  C --> I[wood_league_app\nStreamlit UI]
+  C --> I[wood_league_app\nDjango UI]
 ```
+
+## Django App Structure
+
+| App | Purpose |
+|---|---|
+| `accounts` | Custom email-based `User` model, login/logout views, `LoginRequiredMiddleware` |
+| `dashboard` | Club dashboard: recent games, accuracy trends, opening flow |
+| `games` | Game list and detail views, board builder, stat cards |
+| `analysis` | Engine analysis job queue, Stockfish/Lc0 status views |
+| `openings` | Opening repertoire explorer with continuation trees and W/D/L stats |
+| `players` | Player roster and admin member management |
+| `search` | AI-assisted and keyword game search with HTMX partials |
+| `ingest` | Django management commands wrapping Chess.com sync and analysis workers |
 
 ## What the App Shows
 
-- **Welcome**: recent games, club trends, opening flow, best games, and ingest freshness
-- **Game Search**: keyword and AI-assisted search across stored games
-- **Game Analysis**: move-by-move Stockfish or Lc0 review with board, arrows, and metrics
-- **Opening Analysis / Opening Position**: opening-level performance, continuation flow, and filtered game lists
-- **Admin / Status**: analysis queue and worker visibility
+- **Dashboard** (`/`): recent games, club accuracy trends, opening flow, best games, and ingest freshness
+- **Games** (`/games/`): browseable game list with animated board previews; detail view at `/games/<slug>/`
+- **Game Analysis** (`/games/<slug>/`): move-by-move Stockfish or Lc0 review with board, arrows, and metrics
+- **Opening Explorer** (`/openings/<id>/`): opening-level performance, continuation flow, and filtered game lists
+- **Game Search** (`/search/`): keyword and AI-assisted (Claude) natural-language search
+- **Admin** (`/admin/`): analysis queue visibility and club roster management
 
 ## Related Docs
 
@@ -54,17 +68,23 @@ flowchart LR
 python3.13 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
-# Install dependencies (includes all scripts)
-.venv/bin/python -m pip install -e .
+# Install dependencies
+pip install -r requirements.txt
+
+# Apply database migrations
+python manage.py migrate
 ```
 
 ### Environment variables
 
-Create a `.env` file in the project root (or set these in your shell / Railway dashboard):
+Create a `.env` file in `wood_league_app/` (or set these in your shell / Railway dashboard):
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `DATABASE_URL` | No | local SQLite | PostgreSQL connection string (`postgresql+psycopg://...`) |
+| `SECRET_KEY` | Yes (prod) | insecure dev key | Django secret key — use a long random string in production |
+| `DEBUG` | No | `True` | Set to `False` in production |
+| `ALLOWED_HOSTS` | No | `localhost,127.0.0.1` | Comma-separated allowed hostnames |
+| `DATABASE_URL` | No | local SQLite | PostgreSQL connection string (`postgresql://...`) |
 | `CHESS_COM_USERNAMES` | Yes (for sync) | — | Comma-separated Chess.com usernames to track |
 | `CHESS_COM_USER_AGENT` | No | built-in | Custom User-Agent string for Chess.com API requests |
 | `INGEST_MONTH_LIMIT` | No | `0` | Limit sync to last N months; `0` means full history |
@@ -76,23 +96,24 @@ Create a `.env` file in the project root (or set these in your shell / Railway d
 | `LC0_PATH` | No | — | Full path to the `lc0` binary; required to run Lc0 WDL analysis |
 | `LC0_NODES` | No | `800` | MCTS node budget per position for Lc0 (higher = stronger, slower) |
 | `LC0_NETWORK` | No | — | Optional: path to a specific Lc0 network weights file |
-| `AUTH_ENABLED` | No | `false` | Enable login-gated access |
-| `AUTH_BOOTSTRAP_ADMIN_EMAIL` | No | — | Admin account created on first startup when auth is enabled |
-| `AUTH_BOOTSTRAP_ADMIN_PASSWORD` | No | — | Password for the bootstrap admin |
-| `AUTH_SIGNING_KEY` | No | — | Secret key for signing session tokens (use a long random string in production) |
-| `AUTH_TOKEN_TTL_SECONDS` | No | `604800` | Session cookie lifetime in seconds (default 7 days) |
 
 ### Run the app
 
 ```bash
-.venv/bin/python -m streamlit run streamlit_app.py
+python manage.py runserver
+```
+
+The app is served at `http://localhost:8000`. Authentication is enabled by default — create a superuser first:
+
+```bash
+python manage.py createsuperuser
 ```
 
 ## Local Development Modes
 
-- **App only**: run this repo against an already-populated database
-- **App + ingest**: run [`app.ingest.run_sync`](app/ingest/run_sync.py) manually to pull fresh games from Chess.com
-- **App + local engine workers**: use the local Stockfish / Lc0 commands below for development
+- **App only**: run against an already-populated database — `python manage.py runserver`
+- **App + ingest**: run `python manage.py sync_games` to pull fresh games from Chess.com
+- **App + local engine workers**: use the local Stockfish / Lc0 management commands below
 - **Full deployed flow**: use [`wood_league_dispatchers`](../wood_league_dispatchers/README.md) with the two RunPod worker repos
 
 ---
@@ -100,7 +121,7 @@ Create a `.env` file in the project root (or set these in your shell / Railway d
 ## Ingest: Syncing games from Chess.com
 
 ```bash
-.venv/bin/python -m app.ingest.run_sync
+python manage.py sync_games
 ```
 
 Fetches all archives for the configured usernames and upserts games into the database. Safe to re-run — already-stored games are updated, not duplicated.
@@ -115,10 +136,10 @@ Fetches all archives for the configured usernames and upserts games into the dat
 
 ```bash
 # Sync usernames from .env
-.venv/bin/python -m app.ingest.run_sync
+python manage.py sync_games
 
 # Sync specific usernames without changing .env
-.venv/bin/python -m app.ingest.run_sync --usernames christophersw,opponent1
+python manage.py sync_games --usernames christophersw,opponent1
 ```
 
 **When to run:**
@@ -135,7 +156,7 @@ Analysis is a two-step process: first **enqueue** the games you want analyzed, t
 ### Step 1 — Enqueue unanalyzed games
 
 ```bash
-.venv/bin/python -m app.ingest.run_analysis_worker --enqueue-only
+python manage.py run_analysis_worker --enqueue-only
 ```
 
 Scans the database for games with PGN that have not yet been analyzed and creates a job queue entry for each one. Safe to re-run — already-queued or completed games are skipped.
@@ -150,7 +171,7 @@ Scans the database for games with PGN that have not yet been analyzed and create
 ### Step 2 — Run the worker
 
 ```bash
-.venv/bin/python -m app.ingest.run_analysis_worker --no-poll
+python manage.py run_analysis_worker --no-poll
 ```
 
 Claims jobs from the queue one at a time, runs Stockfish on each game's PGN, and saves per-move centipawn evals, best-move arrows, accuracy scores, and blunder/mistake/inaccuracy counts to the database.
@@ -170,13 +191,13 @@ Claims jobs from the queue one at a time, runs Stockfish on each game's PGN, and
 ### Combined: enqueue + analyze in one command
 
 ```bash
-.venv/bin/python -m app.ingest.run_analysis_worker --enqueue --no-poll
+python manage.py run_analysis_worker --enqueue --no-poll
 ```
 
 ### Check queue status
 
 ```bash
-.venv/bin/python -m app.ingest.run_analysis_worker --status
+python manage.py run_analysis_worker --status
 ```
 
 Output example:
@@ -192,7 +213,7 @@ Each worker safely claims its own jobs via `SELECT FOR UPDATE SKIP LOCKED` (Post
 
 ```bash
 for i in 1 2 3 4; do
-  .venv/bin/python -m app.ingest.run_analysis_worker --threads 2 --no-poll &
+  python manage.py run_analysis_worker --threads 2 --no-poll &
 done
 wait
 ```
@@ -253,7 +274,7 @@ Analysis is the same two-step process as Stockfish: enqueue jobs, then run the w
 #### Step 1 — Enqueue
 
 ```bash
-python -m app.ingest.run_lc0_worker --enqueue --lc0-path /path/to/lc0
+python manage.py run_lc0_worker --enqueue --lc0-path /path/to/lc0
 ```
 
 This scans the database for all games that do not yet have an `engine='lc0'` job and creates one for each. Safe to re-run — already-queued games are skipped.
@@ -261,13 +282,13 @@ This scans the database for all games that do not yet have an `engine='lc0'` job
 #### Step 2 — Run the worker
 
 ```bash
-python -m app.ingest.run_lc0_worker --lc0-path /path/to/lc0
+python manage.py run_lc0_worker --lc0-path /path/to/lc0
 ```
 
 Or combine both steps:
 
 ```bash
-python -m app.ingest.run_lc0_worker --enqueue --lc0-path /path/to/lc0 --nodes 800
+python manage.py run_lc0_worker --enqueue --lc0-path /path/to/lc0 --nodes 800
 ```
 
 **Options:**
@@ -521,24 +542,31 @@ The `analysis_jobs` table uses an `engine` column (`'stockfish'` or `'lc0'`) to 
 
 | Page | URL |
 |---|---|
-| My History | `/my-history` |
-| Game Analysis | `/game-analysis?game_id=<id>` |
-| Game Search | `/game-search` |
+| Dashboard | `/` |
+| Game list | `/games/` |
+| Game detail + analysis | `/games/<slug>/` |
+| Game search | `/search/` |
+| Opening explorer | `/openings/<id>/` |
+| Analysis status (admin) | `/admin/analysis-status/` |
+| Club members (admin) | `/admin/members/` |
+| Login / Logout | `/auth/login/`, `/auth/logout/` |
+| Django admin | `/django-admin/` |
+
+HTMX partials are served under `/_partials/` and are not intended to be navigated to directly.
 
 ---
 
 ## Authentication
 
-Auth is disabled by default. Enable it by setting:
+Authentication is always on. All routes except `/auth/login/` and `/auth/logout/` require a logged-in session, enforced by `LoginRequiredMiddleware`.
 
-```env
-AUTH_ENABLED=true
-AUTH_BOOTSTRAP_ADMIN_EMAIL=you@example.com
-AUTH_BOOTSTRAP_ADMIN_PASSWORD=your-password
-AUTH_SIGNING_KEY=long-random-secret-string
+Create the first admin account with:
+
+```bash
+python manage.py createsuperuser
 ```
 
-On first startup with auth enabled, the admin account is created automatically if no users exist. Admins can invite new members from the sidebar. Sessions are persisted via a signed browser cookie so direct game links (`/game-analysis?game_id=...`) work across tabs and browser restarts.
+Django's session-based auth persists across tabs and browser restarts. The custom `LegacyPbkdf2Hasher` backend transparently migrates passwords stored in the old Streamlit format to Django's native PBKDF2 format on first login.
 
 ---
 
@@ -638,8 +666,7 @@ All findings from the `python:3.11-slim` base are **Low severity** OS-level CVEs
 
 | Repo | Type | Severity | Location | Notes |
 |---|---|---|---|---|
-| `wood_league_app` | Code | Medium | `app/web/pages/game_search.py:315` | SQL injection — unsanitized input into `sqlalchemy.text` |
-| `wood_league_app` | Code | Low | `app/ingest/sync_service.py:196` | `hashlib.sha1` — weak hash |
+| `wood_league_app` | Code | Low | `app/ingest/sync_service.py:196` | `hashlib.sha1` — weak hash (non-security use: game deduplication) |
 | `wood_league_stockfish_runpod` | Code | Low | `stockfish_pipeline/ingest/sync_service.py:191` | `hashlib.sha1` — weak hash |
 | `wood_league_dispatchers` | Code | Low | `dispatchers/ingest/sync_service.py:190` | `hashlib.sha1` — weak hash |
 | `wood_league_lc0_runpod` | Code | — | — | ✅ Clean |
@@ -653,22 +680,26 @@ All four repos have **no dependency vulnerabilities**.
 1. Push this repo to GitHub.
 2. In Railway, create a new project → **Deploy from GitHub repo**.
 3. Attach a **PostgreSQL** plugin and Railway will inject `DATABASE_URL` automatically.
-4. Add environment variables in the Railway dashboard (see table above).
+4. Add environment variables in the Railway dashboard (see table above). At minimum set `SECRET_KEY`, `DEBUG=False`, and `ALLOWED_HOSTS`.
 5. Deploy. Railway uses `railway.toml` (Nixpacks builder) which:
    - Installs `stockfish` via Nix (available on PATH automatically)
-   - Runs `pip install .`
-   - Starts Streamlit on `0.0.0.0:$PORT`
+   - Runs `pip install -r requirements.txt`
+   - Runs `python manage.py migrate`
+   - Starts Gunicorn on `0.0.0.0:$PORT`
 
 **Notes:**
 - Do not set `PORT` manually — Railway injects it automatically.
-- Always set a strong `AUTH_SIGNING_KEY` in production.
-- Run the sync script against your Railway database from your local machine by setting `DATABASE_URL` in your shell before running `run_sync`.
+- Always set a strong `SECRET_KEY` in production.
+- Run the sync command against your Railway database from your local machine by setting `DATABASE_URL` in your shell before running `manage.py sync_games`.
 
 ---
 
 ## Architecture notes
 
 - If no `DATABASE_URL` is set, the app uses a local SQLite file (`wood_league_chess.db`).
-- Demo/placeholder data is only shown when the database has no player or game rows.
+- The Django ORM maps directly onto the existing PostgreSQL schema — no schema changes were made during the Streamlit → Django migration.
 - The `Game` table stores one row per unique game. `GameParticipant` stores each tracked player's perspective on that game (color, result, rating, blunder counts), so games between two tracked players appear correctly in both players' history.
 - Stockfish analysis results are stored in `GameAnalysis` (per-game accuracy/blunder summary) and `MoveAnalysis` (per-move eval, best move, CPL, classification).
+- HTMX partials are served from `/_partials/<app>/...` routes defined in each app's `partial_urls.py`. Full-page responses and HTMX partial responses share the same view functions, distinguished by `request.htmx`.
+- The `app/` directory contains legacy service classes from the Streamlit era that are still called by Django views. These will be gradually absorbed into Django app services.
+- The `LegacyPbkdf2Hasher` in `accounts/backends.py` transparently upgrades old Streamlit password hashes to Django's native format on first successful login.

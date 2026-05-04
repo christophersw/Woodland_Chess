@@ -1,3 +1,5 @@
+"""URL routes for HTMX partial endpoints in the dashboard app."""
+
 from django.urls import path
 
 from . import views

@@ -1,3 +1,5 @@
+"""HTMX partial URL patterns for opening statistics."""
+
 from django.urls import path
 from . import views
 

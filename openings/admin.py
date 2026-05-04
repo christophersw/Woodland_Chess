@@ -1,3 +1,3 @@
-from django.contrib import admin
+"""Django admin configuration for the openings app."""
 
-# Register your models here.
+from django.contrib import admin

@@ -1,3 +1,5 @@
+"""HTMX partial URL patterns for member management actions."""
+
 from django.urls import path
 from . import views
 

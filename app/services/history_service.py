@@ -1,3 +1,8 @@
+"""Game history service for retrieving player statistics, ratings, and opening distributions.
+
+Fetches player game history from database with fallback to demo data, supporting ELO timeseries,
+recent games with evaluations, and opening frequency analysis.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,22 +18,27 @@ from app.storage.models import Game, GameAnalysis, GameParticipant, Player
 
 @dataclass
 class HistoryFilters:
+    """Filter parameters for game history queries."""
     player: str
     lookback_days: int = 90
     recent_limit: int = 20
 
 
 class HistoryService:
+    """Retrieves player game history, ratings, and opening statistics."""
     def __init__(self) -> None:
+        """Initialize with demo player names and database."""
         self._demo_players = ["alice", "bob", "carol", "dave"]
         init_db()
 
     def _has_real_data(self) -> bool:
+        """Check if database contains actual player records."""
         with get_session() as session:
             count = session.scalar(select(func.count()).select_from(Player)) or 0
             return count > 0
 
     def list_players(self) -> list[str]:
+        """List all players in database or return demo players if empty."""
         if self._has_real_data():
             with get_session() as session:
                 rows = session.scalars(select(Player.username).order_by(Player.username)).all()
@@ -37,6 +47,7 @@ class HistoryService:
         return self._demo_players
 
     def get_elo_timeseries(self, filters: HistoryFilters) -> pd.DataFrame:
+        """Get player rating over time within lookback period."""
         if not self._has_real_data():
             return self._demo_elo_timeseries(filters)
 
@@ -70,6 +81,7 @@ class HistoryService:
         )
 
     def get_recent_games_with_eval(self, filters: HistoryFilters) -> pd.DataFrame:
+        """Get recent games for player with Stockfish evaluation."""
         if not self._has_real_data():
             return self._demo_recent_games_with_eval(filters)
 
@@ -111,6 +123,7 @@ class HistoryService:
         )
 
     def get_opening_distribution(self, filters: HistoryFilters, moves_depth: int = 5) -> pd.DataFrame:
+        """Get frequency distribution of openings played by player."""
         if not self._has_real_data():
             return self._demo_opening_distribution(moves_depth)
 
@@ -140,6 +153,7 @@ class HistoryService:
         )
 
     def _demo_elo_timeseries(self, filters: HistoryFilters) -> pd.DataFrame:
+        """Generate demo ELO timeseries with random variation."""
         random.seed(42)
         start = date.today() - timedelta(days=filters.lookback_days)
         rows: list[dict] = []
@@ -155,6 +169,7 @@ class HistoryService:
         return pd.DataFrame(rows)
 
     def _demo_recent_games_with_eval(self, filters: HistoryFilters) -> pd.DataFrame:
+        """Generate demo recent games with random results and evaluations."""
         random.seed(7)
         rows: list[dict] = []
         today = datetime.now()
@@ -179,6 +194,7 @@ class HistoryService:
         return pd.DataFrame(rows)
 
     def _demo_opening_distribution(self, moves_depth: int) -> pd.DataFrame:
+        """Generate demo opening frequency distribution."""
         openings = {
             "Italian Game": 26,
             "Queen's Gambit": 18,

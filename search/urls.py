@@ -1,3 +1,5 @@
+"""Main URL routes for the search app."""
+
 from django.urls import path
 from . import views
 

@@ -33,6 +33,7 @@ _GP_TITLE = "Playfair Display SC, Cormorant Garamond, Georgia, serif"
 
 
 def _gp_layout(**overrides) -> dict:
+    """Return a Du Bois-styled Plotly layout dict with optional overrides."""
     base: dict = dict(
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(242,230,208,0.5)",
@@ -68,6 +69,7 @@ def _gp_layout(**overrides) -> dict:
 
 
 def player_accuracy_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a line chart showing accuracy trends for each player over time."""
     if df.empty:
         return go.Figure()
     fig = go.Figure()
@@ -91,6 +93,7 @@ def player_accuracy_chart(df: pd.DataFrame) -> go.Figure:
 
 
 def player_elo_chart(df: pd.DataFrame) -> go.Figure:
+    """Create a line chart showing ELO rating trends for each player over time."""
     if df.empty:
         return go.Figure()
     cleaned = []
@@ -129,6 +132,7 @@ def welcome_opening_sankey(
     selected_node: str | None = None,
     title: str = "Opening Continuations",
 ) -> go.Figure:
+    """Create a Sankey diagram showing opening move continuations with statistics."""
     if edges_df.empty:
         return go.Figure()
 

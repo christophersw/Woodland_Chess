@@ -8,6 +8,7 @@ from .models import AnalysisJob, WorkerHeartbeat
 
 
 def queue_totals() -> dict[str, int]:
+    """Retrieve count of analysis jobs grouped by status."""
     rows = (
         AnalysisJob.objects
         .values("status")
@@ -17,6 +18,7 @@ def queue_totals() -> dict[str, int]:
 
 
 def queue_by_engine() -> list[dict]:
+    """Retrieve analysis job counts grouped by engine and status."""
     rows = (
         AnalysisJob.objects
         .values("engine", "status")
@@ -27,6 +29,7 @@ def queue_by_engine() -> list[dict]:
 
 
 def recent_jobs(limit: int = 100) -> list[dict]:
+    """Retrieve the most recent analysis jobs with key metrics."""
     qs = (
         AnalysisJob.objects
         .order_by("-id")
@@ -40,6 +43,7 @@ def recent_jobs(limit: int = 100) -> list[dict]:
 
 
 def worker_heartbeats() -> list[dict]:
+    """Retrieve status and health metrics of all active workers."""
     return list(
         WorkerHeartbeat.objects
         .order_by("-last_seen")

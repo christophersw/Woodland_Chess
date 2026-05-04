@@ -1,3 +1,7 @@
+"""Service for syncing Chess.com player games to the local database.
+
+Fetches archives from Chess.com API, parses PGNs, and upserts Game and GameParticipant records with opening and participant analysis.
+"""
 from __future__ import annotations
 
 import re
@@ -18,6 +22,7 @@ from app.storage.models import Game, GameParticipant, Player
 
 @dataclass
 class SyncStats:
+    """Statistics from syncing a single player's Chess.com archives."""
     username: str
     inserted: int = 0
     updated: int = 0
@@ -25,15 +30,18 @@ class SyncStats:
 
 
 SyncProgressCallback = Callable[[str, int, int, SyncStats], None]
+"""Type alias for progress callback: (username, current_archive_idx, total_archives, stats)."""
 
 
 class ChessComSyncService:
+    """Service to sync Chess.com player games and archives to local database."""
     def __init__(self) -> None:
         self._settings = get_settings()
         self._client = ChessComClient()
         init_db()
 
     def _archive_in_scope(self, archive_url: str) -> bool:
+        """Check if an archive's year/month is within the ingest month limit."""
         limit = self._settings.ingest_month_limit
         if limit <= 0:
             return True
@@ -54,9 +62,11 @@ class ChessComSyncService:
         return months_old <= limit
 
     def sync_many(self, usernames: list[str]) -> list[SyncStats]:
+        """Sync multiple players and return statistics for each."""
         return [self.sync_player(username) for username in usernames]
 
     def sync_player(self, username: str, progress_callback: SyncProgressCallback | None = None) -> SyncStats:
+        """Sync all in-scope archives for a player, creating or updating Game and GameParticipant records."""
         username = username.lower().strip()
         stats = SyncStats(username=username)
 
@@ -90,6 +100,7 @@ class ChessComSyncService:
         return stats
 
     def _upsert_game(self, session, player: Player, payload: dict) -> str:
+        """Insert or update a game record from Chess.com API payload. Returns 'inserted', 'updated', or None."""
         game_id = payload.get("uuid") or self._stable_game_id(payload)
         game = session.get(Game, game_id)
         created = game is None
@@ -167,6 +178,7 @@ class ChessComSyncService:
         opponent_rating: int | None,
         result: str,
     ) -> None:
+        """Insert or update a GameParticipant record linking player to game."""
         participant = session.scalar(
             select(GameParticipant).where(
                 GameParticipant.game_id == game_id,
@@ -185,6 +197,7 @@ class ChessComSyncService:
 
     @staticmethod
     def _safe_int(value) -> int | None:
+        """Safely convert value to int, returning None on failure."""
         try:
             return int(value) if value is not None else None
         except (TypeError, ValueError):
@@ -192,8 +205,9 @@ class ChessComSyncService:
 
     @staticmethod
     def _stable_game_id(payload: dict) -> str:
+        """Generate stable game ID via SHA1 hash of url, end_time, and PGN snippet."""
         raw = f"{payload.get('url', '')}|{payload.get('end_time', '')}|{payload.get('pgn', '')[:120]}"
-        return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:24]
+        return hashlib.sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()[:24]  # nosec B324
 
     @staticmethod
     def _slugify(value: str) -> str:
@@ -226,6 +240,7 @@ class ChessComSyncService:
 
     @staticmethod
     def _normalize_result(value: str) -> str:
+        """Normalize Chess.com result strings to Win, Draw, or Loss."""
         draw_results = {
             "agreed",
             "repetition",
@@ -246,6 +261,7 @@ class ChessComSyncService:
 
     @staticmethod
     def _result_from_pgn(pgn: str) -> str | None:
+        """Extract game Result header value from PGN."""
         if not pgn.strip():
             return None
 
@@ -258,6 +274,7 @@ class ChessComSyncService:
 
     @staticmethod
     def _opening_from_pgn(pgn: str) -> tuple[str, str]:
+        """Extract opening name and ECO code from PGN, or reconstruct from first 5 moves."""
         if not pgn.strip():
             return "Unknown", ""
 

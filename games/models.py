@@ -1,7 +1,10 @@
+"""Database models for chess games and participant tracking."""
+
 from django.db import models
 
 
 class Game(models.Model):
+    """A chess game record with metadata from Chess.com, PGN, and analysis."""
     # Chess.com game ID is a string — keep as the primary key to avoid any
     # mapping complexity; use slug as the URL identifier everywhere.
     id = models.CharField(max_length=64, primary_key=True)
@@ -26,10 +29,12 @@ class Game(models.Model):
         verbose_name_plural = "Games"
 
     def __str__(self):
+        """Return human-readable game summary."""
         return f"{self.white_username} vs {self.black_username} ({self.played_at:%Y-%m-%d})"
 
     @property
     def display_result(self):
+        """Return formatted result description (e.g., 'White won', 'Draw')."""
         if self.result_pgn == "1-0":
             return f"{self.white_username} won"
         if self.result_pgn == "0-1":
@@ -40,6 +45,8 @@ class Game(models.Model):
 
 
 class GameParticipant(models.Model):
+    """Tracks player participation in a game with performance metrics."""
+
     game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="participants")
     player = models.ForeignKey("players.Player", on_delete=models.CASCADE, related_name="participations")
     color = models.CharField(max_length=8)
@@ -64,4 +71,5 @@ class GameParticipant(models.Model):
         verbose_name_plural = "Game Participants"
 
     def __str__(self):
+        """Return human-readable participation description."""
         return f"{self.player} ({self.color}) in {self.game_id}"

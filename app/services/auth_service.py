@@ -1,3 +1,7 @@
+"""Authentication service for user login, token management, and password hashing.
+
+Handles PBKDF2 password hashing, HMAC-based login token generation and verification, and user account management.
+"""
 from __future__ import annotations
 
 import base64
@@ -19,21 +23,25 @@ PBKDF2_ITERATIONS = 260_000
 
 @dataclass
 class AuthUser:
+    """Authenticated user information for session management."""
     id: int
     email: str
     role: str
 
 
 def _b64_encode(raw: bytes) -> str:
+    """Encode bytes as URL-safe base64 without padding."""
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
 
 def _b64_decode(text: str) -> bytes:
+    """Decode URL-safe base64 text to bytes, handling missing padding."""
     padding = "=" * ((4 - len(text) % 4) % 4)
     return base64.urlsafe_b64decode((text + padding).encode("ascii"))
 
 
 def hash_password(password: str) -> str:
+    """Hash password using PBKDF2-SHA256 with random salt."""
     salt = os.urandom(16)
     dk = hashlib.pbkdf2_hmac(
         "sha256",
@@ -45,6 +53,7 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, stored_hash: str) -> bool:
+    """Verify password against PBKDF2 hash or legacy bcrypt hash."""
     if stored_hash.startswith(f"{PBKDF2_SCHEME}$"):
         parts = stored_hash.split("$", 3)
         if len(parts) != 4:
@@ -78,15 +87,19 @@ def verify_password(password: str, stored_hash: str) -> bool:
 
 
 class AuthService:
+    """Manages user authentication, password hashing, and login token lifecycle."""
     def __init__(self) -> None:
+        """Initialize with config settings and database."""
         self.settings = get_settings()
         init_db()
 
     @staticmethod
     def normalize_email(email: str) -> str:
+        """Lowercase and trim email address."""
         return (email or "").strip().lower()
 
     def _token_signing_key(self) -> bytes:
+        """Get HMAC signing key from config, falling back to defaults."""
         key = (
             self.settings.auth_signing_key.strip()
             or self.settings.auth_bootstrap_admin_password.strip()
@@ -95,12 +108,14 @@ class AuthService:
         return key.encode("utf-8")
 
     def create_login_token(self, user_id: int) -> str:
+        """Generate HMAC-signed login token with expiration."""
         exp = int(time.time()) + int(self.settings.auth_token_ttl_seconds)
         msg = f"{user_id}.{exp}".encode("utf-8")
         sig = hmac.new(self._token_signing_key(), msg, hashlib.sha256).digest()
         return f"{user_id}.{exp}.{_b64_encode(sig)}"
 
     def verify_login_token(self, token: str) -> AuthUser | None:
+        """Validate login token signature and expiration; return user if valid."""
         parts = (token or "").split(".")
         if len(parts) != 3:
             return None
@@ -124,6 +139,7 @@ class AuthService:
         return self.get_user(user_id)
 
     def bootstrap_admin_if_needed(self) -> None:
+        """Create initial admin user from config if database is empty."""
         if not self.settings.auth_enabled:
             return
 
@@ -148,6 +164,7 @@ class AuthService:
             session.commit()
 
     def authenticate(self, email: str, password: str) -> AuthUser | None:
+        """Verify email and password; return AuthUser if credentials valid."""
         normalized = self.normalize_email(email)
         if not normalized or not password:
             return None
@@ -161,6 +178,7 @@ class AuthService:
             return AuthUser(id=user.id, email=user.email, role=user.role)
 
     def get_user(self, user_id: int) -> AuthUser | None:
+        """Fetch active user by ID."""
         with get_session() as session:
             user = session.scalar(select(User).where(User.id == user_id))
             if user is None or not user.is_active:
@@ -168,6 +186,7 @@ class AuthService:
             return AuthUser(id=user.id, email=user.email, role=user.role)
 
     def create_user(self, email: str, password: str, role: str = "member") -> AuthUser:
+        """Create new user with email, password, and role; validate inputs."""
         normalized = self.normalize_email(email)
         if not normalized:
             raise ValueError("Email is required")

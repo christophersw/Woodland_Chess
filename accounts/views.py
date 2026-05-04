@@ -1,3 +1,5 @@
+"""Authentication views for user login and logout."""
+
 from django.conf import settings
 from django.contrib import auth, messages
 from django.shortcuts import redirect, render
@@ -6,7 +8,7 @@ from .forms import LoginForm
 
 
 def login_view(request):
-    # If auth is disabled globally, skip straight to the dashboard.
+    """Render login form and authenticate user credentials via email and password."""
     if not getattr(settings, "AUTH_ENABLED", True):
         return redirect(settings.LOGIN_REDIRECT_URL)
 
@@ -21,16 +23,14 @@ def login_view(request):
         user = auth.authenticate(request, username=email, password=password)
         if user is not None and user.is_active:
             auth.login(request, user)
-            next_url = request.GET.get("next", "")
-            if not next_url or not next_url.startswith("/"):
-                next_url = settings.LOGIN_REDIRECT_URL
-            return redirect(next_url)
+            return redirect(settings.LOGIN_REDIRECT_URL)
         messages.error(request, "Invalid email or password.")
 
     return render(request, "accounts/login.html", {"form": form})
 
 
 def logout_view(request):
+    """Log out the authenticated user and redirect to the logout URL."""
     if request.method == "POST":
         auth.logout(request)
     return redirect(settings.LOGOUT_REDIRECT_URL)

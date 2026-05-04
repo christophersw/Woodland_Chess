@@ -1,3 +1,8 @@
+"""Opening label generation service for display-friendly opening names.
+
+Extracts opening names from PGN headers, Lichess database, ECO codes, and fallback
+heuristics when standard catalogs are unavailable.
+"""
 from __future__ import annotations
 
 import io
@@ -18,6 +23,7 @@ _MOVE_TOKEN_RE = re.compile(
 
 
 def _event_label(event: str) -> str | None:
+    """Extract opening name from PGN Event header if it contains opening keywords."""
     text = _ROUND_SUFFIX_RE.sub("", (event or "").strip()).strip()
     if not text:
         return None
@@ -27,6 +33,7 @@ def _event_label(event: str) -> str | None:
 
 
 def _ecourl_label(ecourl: str) -> str | None:
+    """Extract opening name from Lichess ECOUrl header; URL slug to readable name."""
     path = urlparse((ecourl or "").strip()).path.rstrip("/")
     slug = unquote(path.rsplit("/", 1)[-1]) if path else ""
     if not slug:
@@ -39,6 +46,7 @@ def _ecourl_label(ecourl: str) -> str | None:
 
 
 def _prefix_eco(label: str, eco_code: str | None) -> str:
+    """Prepend ECO code to label if not already present."""
     eco = (eco_code or "").strip()
     text = (label or "").strip()
     if eco and text and not text.startswith(eco):
@@ -47,6 +55,7 @@ def _prefix_eco(label: str, eco_code: str | None) -> str:
 
 
 def _looks_like_move_sequence(label: str) -> bool:
+    """Detect if label is move notation rather than opening name."""
     tokens = [token.rstrip("+#!?") for token in (label or "").split() if token.strip()]
     if len(tokens) < 3:
         return False
@@ -57,6 +66,7 @@ def _looks_like_move_sequence(label: str) -> bool:
 
 
 def _uncatalogued_label(eco_code: str | None, pgn_text: str | None) -> str | None:
+    """Generate fallback label from PGN headers when standard catalogs unavailable."""
     text = str(pgn_text or "").strip()
     if not text:
         return _prefix_eco("Uncatalogued Opening", eco_code) or None

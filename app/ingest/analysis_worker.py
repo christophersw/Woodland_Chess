@@ -32,7 +32,7 @@ _WORKER_ID = socket.gethostname()
 
 
 def _collect_worker_info(stockfish_path: str) -> dict:
-    """Collect CPU model, core count, total RAM, and Stockfish binary path."""
+    """Collect CPU model, core count, total RAM, and Stockfish binary path for worker heartbeat."""
     cpu_model: str | None = None
     cpu_cores: int | None = None
     memory_mb: int | None = None
@@ -79,16 +79,14 @@ def _collect_worker_info(stockfish_path: str) -> dict:
 
 @dataclass
 class _ClaimedJob:
+    """Lightweight dataclass for a claimed job's key fields."""
     id: int
     game_id: str
     depth: int
 
 
 def _claim_job(depth: int) -> _ClaimedJob | None:
-    """
-    Atomically claim one pending job and return its key fields as a plain dataclass.
-    Uses SELECT FOR UPDATE SKIP LOCKED on PostgreSQL; plain SELECT on SQLite.
-    """
+    """Atomically claim one pending job via SELECT FOR UPDATE SKIP LOCKED (PostgreSQL) or plain SELECT (SQLite)."""
     is_pg = ENGINE.dialect.name == "postgresql"
 
     stmt = (
@@ -118,13 +116,14 @@ def _claim_job(depth: int) -> _ClaimedJob | None:
 
 
 def _load_pgn(game_id: str) -> str:
+    """Load PGN text for a game from the database."""
     with get_session() as session:
         game = session.get(Game, game_id)
         return game.pgn if game and game.pgn else ""
 
 
 def _save_analysis(job: _ClaimedJob, result) -> None:
-    """Persist GameAnalysis + MoveAnalysis rows, update GameParticipant stats."""
+    """Save analysis result to GameAnalysis and MoveAnalysis, update participant accuracy metrics."""
     with get_session() as session:
         ga = session.execute(
             select(GameAnalysis).where(GameAnalysis.game_id == job.game_id)
@@ -195,6 +194,7 @@ def _save_analysis(job: _ClaimedJob, result) -> None:
 
 
 def _mark_completed(job_id: int) -> None:
+    """Mark a job as completed and record duration."""
     with get_session() as session:
         job = session.get(AnalysisJob, job_id)
         if job:
@@ -213,7 +213,7 @@ def _heartbeat(
     jobs_failed: int = 0,
     worker_info: dict | None = None,
 ) -> None:
-    """Upsert a heartbeat row for this worker so the status page can detect crashes."""
+    """Upsert or create worker heartbeat record for crash detection and status monitoring."""
     try:
         with get_session() as session:
             row = session.get(WorkerHeartbeat, _WORKER_ID)
@@ -239,6 +239,7 @@ def _heartbeat(
 
 
 def _mark_failed(job_id: int, error: str) -> None:
+    """Mark a job as failed and increment retry count."""
     with get_session() as session:
         job = session.get(AnalysisJob, job_id)
         if job:
@@ -252,7 +253,7 @@ _STALE_MINUTES = 10
 
 
 def _recover_stale_jobs() -> int:
-    """Reset jobs stuck in 'running' for longer than _STALE_MINUTES back to 'pending'."""
+    """Reset jobs stuck in 'running' state longer than _STALE_MINUTES back to 'pending' for recovery."""
     from sqlalchemy import update
 
     cutoff = datetime.utcnow() - timedelta(minutes=_STALE_MINUTES)

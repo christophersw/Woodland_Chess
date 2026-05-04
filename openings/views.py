@@ -1,3 +1,5 @@
+"""Views for displaying opening repertoire analysis and statistics."""
+
 from __future__ import annotations
 
 import json
@@ -32,6 +34,7 @@ _DEFAULT_DAYS = 90
 
 
 def _parse_filter_params(request: HttpRequest) -> tuple[int | None, list[str] | None]:
+    """Extract and validate 'days' and 'players' query parameters."""
     days_raw = request.GET.get("days", "")
     if days_raw == "all":
         days = None
@@ -43,6 +46,7 @@ def _parse_filter_params(request: HttpRequest) -> tuple[int | None, list[str] | 
 
 
 def _scope_label(days: int | None, players: list[str] | None, all_members: list[str]) -> str:
+    """Build human-readable scope label for filters (timeframe and players)."""
     if days is None:
         tf = "All time"
     else:
@@ -59,6 +63,7 @@ def _scope_label(days: int | None, players: list[str] | None, all_members: list[
 
 
 def _build_board_svg(fen: str) -> str:
+    """Render board position from FEN as SVG with styled colors and coordinates."""
     board = chess.Board(fen)
     return chess.svg.board(board, size=340, colors=_BOARD_COLORS, coordinates=True)
 
@@ -66,6 +71,7 @@ def _build_board_svg(fen: str) -> str:
 @login_required
 @require_GET
 def detail(request: HttpRequest, opening_id: int) -> HttpResponse:
+    """Display full opening detail page with board, lineage tree, and stats tabs."""
     opening = services.get_opening(opening_id)
     if opening is None:
         return render(request, "openings/not_found.html", {"opening_id": opening_id}, status=404)
@@ -105,6 +111,7 @@ def detail(request: HttpRequest, opening_id: int) -> HttpResponse:
 @login_required
 @require_GET
 def stats_partial(request: HttpRequest, opening_id: int) -> HttpResponse:
+    """Return HTMX partial with charts and tables for opening stats based on filters."""
     opening = services.get_opening(opening_id)
     if opening is None:
         return HttpResponse("<p class='font-mono text-sm text-peat'>Opening not found.</p>", status=404)

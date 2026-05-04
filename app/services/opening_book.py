@@ -89,6 +89,7 @@ def ensure_opening_book() -> None:
 
 @lru_cache(maxsize=1)
 def _load_book_entries() -> dict[str, tuple[int, str, str]]:
+    """Load cached opening book entries indexed by EPD position string."""
     """Return {epd: (id, eco, name)} from the opening_book table."""
     ensure_opening_book()
     book: dict[str, tuple[int, str, str]] = {}
@@ -103,6 +104,7 @@ def _load_book_entries() -> dict[str, tuple[int, str, str]]:
 
 @lru_cache(maxsize=1)
 def _load_book() -> dict[str, tuple[str, str]]:
+    """Load cached opening book (ECO, name) pairs indexed by EPD."""
     """Return {epd: (eco, name)} from the opening_book table."""
     return {
         epd: (eco, name)

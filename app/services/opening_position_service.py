@@ -47,7 +47,9 @@ def _parse_opening_pgn(pgn_text: str) -> tuple[chess.Board, int]:
 
 
 class OpeningPositionService:
+    """Service for opening position analysis, statistics, and continuation flows."""
     def __init__(self) -> None:
+        """Initialize database."""
         init_db()
 
     # ── Opening metadata ─────────────────────────────────────────────────────
@@ -70,6 +72,7 @@ class OpeningPositionService:
             }
 
     def search_openings(self, query: str, limit: int = 30) -> list[dict]:
+        """Search opening book by name fragment."""
         """Search openings by name fragment, return list of dicts."""
         with get_session() as session:
             rows = session.execute(
@@ -292,6 +295,7 @@ class OpeningPositionService:
         lookback_days: int | None,
         players: list[str] | None,
     ) -> int:
+        """Count unique games in date and player scope."""
         floor_date = (
             datetime.utcnow() - timedelta(days=lookback_days)
             if lookback_days is not None

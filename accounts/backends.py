@@ -1,3 +1,5 @@
+"""Custom authentication backends for legacy password migration and user authentication."""
+
 import base64
 import hashlib
 import hmac
@@ -21,6 +23,7 @@ class LegacyPbkdf2Hasher(BasePasswordHasher):
     algorithm = "pbkdf2_sha256_legacy"
 
     def verify(self, password, encoded):
+        """Verify password against URL-safe base64-encoded PBKDF2 hash from legacy Streamlit app."""
         # encoded format: pbkdf2_sha256$<iterations>$<salt>$<digest_urlsafe_b64>
         try:
             _, iterations_str, salt, digest_urlsafe = encoded.split("$", 3)
@@ -43,13 +46,16 @@ class LegacyPbkdf2Hasher(BasePasswordHasher):
         return constant_time_compare(digest_standard, stored_standard)
 
     def encode(self, password, salt, iterations=None):
+        """Not implemented for legacy hasher — only used for verification."""
         raise NotImplementedError("LegacyPbkdf2Hasher is read-only — use Django's default hasher for new passwords")
 
     def must_update(self, encoded):
+        """Always return True to force re-hashing with Django's native hasher on next login."""
         # Always re-hash to Django's native format on next successful login
         return True
 
     def safe_summary(self, encoded):
+        """Return a safe summary of the hash suitable for logging."""
         _, iterations, salt, _ = encoded.split("$", 3)
         return {
             "algorithm": self.algorithm,
@@ -59,6 +65,7 @@ class LegacyPbkdf2Hasher(BasePasswordHasher):
         }
 
     def harden_runtime(self, password, encoded):
+        """No-op placeholder to satisfy the hasher interface."""
         pass
 
 

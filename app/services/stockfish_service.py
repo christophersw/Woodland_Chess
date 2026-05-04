@@ -34,6 +34,7 @@ _GREAT_ALT_FLOOR = 80.0  # only-good-move: alternatives ≥80 cp worse
 
 @dataclass
 class MoveResult:
+    """Per-move Stockfish analysis with CPL, best move candidates, and classification."""
     ply: int
     san: str
     fen: str
@@ -52,6 +53,7 @@ class MoveResult:
 
 @dataclass
 class PlayerStats:
+    """Aggregate player statistics from Stockfish analysis: accuracy, ACPL, error counts."""
     accuracy: float
     acpl: float
     blunders: int
@@ -61,6 +63,7 @@ class PlayerStats:
 
 @dataclass
 class GameResult:
+    """Complete Stockfish analysis result for a game with per-move and per-player stats."""
     white_stats: PlayerStats
     black_stats: PlayerStats
     moves: list[MoveResult]
@@ -107,6 +110,7 @@ def _move_accuracy(wp_before: float, wp_after: float) -> float:
 
 
 def _harmonic_mean(values: list[float]) -> float:
+    """Harmonic mean with near-zero epsilon dampening."""
     """Harmonic mean, safe for near-zero values."""
     if not values:
         return 0.0
@@ -115,6 +119,7 @@ def _harmonic_mean(values: list[float]) -> float:
 
 
 def _weighted_mean(values: list[float], weights: list[float]) -> float:
+    """Weighted arithmetic mean of values."""
     """Weighted arithmetic mean."""
     if not values:
         return 0.0

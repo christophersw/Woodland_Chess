@@ -36,10 +36,12 @@ def _analyzed_game_ids():
 
 
 def get_club_member_names() -> list[str]:
+    """Return a sorted list of all player usernames in the club."""
     return list(Player.objects.order_by("username").values_list("username", flat=True))
 
 
 def get_last_system_event(event_type: str = "ingest") -> dict | None:
+    """Get the most recent system event of the given type (ingest or analysis)."""
     event = (
         SystemEvent.objects
         .filter(event_type=event_type, status__in=["completed", "failed"])
@@ -59,6 +61,7 @@ def get_last_system_event(event_type: str = "ingest") -> dict | None:
 
 
 def get_most_recent_games(limit: int = 10) -> list[dict]:
+    """Fetch recent games with analysis results, sorted by date."""
     analyzed_ids = _analyzed_game_ids()
     games = (
         Game.objects
@@ -91,6 +94,7 @@ def get_player_accuracy_timeseries(
     lookback_days: int = 90,
     players: list[str] | None = None,
 ) -> pd.DataFrame:
+    """Return accuracy timeseries for players over the lookback period."""
     floor_date = datetime.now(timezone.utc) - timedelta(days=lookback_days)
     analyzed_ids = _analyzed_game_ids()
 
@@ -140,6 +144,7 @@ def get_all_players_elo_timeseries(
     lookback_days: int = 90,
     players: list[str] | None = None,
 ) -> pd.DataFrame:
+    """Return ELO rating timeseries for players over the lookback period."""
     floor_date = datetime.now(timezone.utc) - timedelta(days=lookback_days)
 
     qs = (
@@ -179,6 +184,7 @@ def get_best_recent_games_by_accuracy(
     limit: int = 10,
     lookback_days: int = 30,
 ) -> list[dict]:
+    """Get highest-accuracy games from the recent lookback period."""
     floor_date = datetime.now(timezone.utc) - timedelta(days=lookback_days)
     analyzed_ids = _analyzed_game_ids()
 
@@ -216,6 +222,7 @@ def get_best_recent_games_by_accuracy(
 
 
 def get_best_all_time_games_by_acpl(limit: int = 10) -> list[dict]:
+    """Get lowest average centipawn loss (best) games across all time."""
     analyzed_ids = _analyzed_game_ids()
 
     games = (
@@ -255,6 +262,7 @@ def get_opening_flow(
     players: list[str] | None = None,
     min_games: int = 2,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return opening move flow as edge and node statistics dataframes."""
     floor_date = datetime.now(timezone.utc) - timedelta(days=lookback_days)
 
     qs = (

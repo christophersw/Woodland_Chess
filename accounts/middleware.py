@@ -1,3 +1,5 @@
+"""Middleware for enforcing authentication across the application."""
+
 from django.conf import settings
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -17,9 +19,11 @@ class LoginRequiredMiddleware:
     """
 
     def __init__(self, get_response):
+        """Initialize the middleware with the WSGI application."""
         self.get_response = get_response
 
     def __call__(self, request):
+        """Process the request and enforce authentication checks."""
         if not getattr(settings, "AUTH_ENABLED", True):
             return self.get_response(request)
 

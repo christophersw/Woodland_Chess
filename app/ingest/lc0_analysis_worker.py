@@ -30,12 +30,15 @@ _WORKER_ID = f"{socket.gethostname()}-lc0"
 
 @dataclass
 class _ClaimedJob:
+    """Lightweight dataclass for a claimed lc0 job's key fields."""
     id: int
     game_id: str
     nodes: int
 
 
 def _claim_job(nodes: int) -> _ClaimedJob | None:
+    """Atomically claim one pending lc0 job via SELECT FOR UPDATE SKIP LOCKED (PostgreSQL) or plain SELECT (SQLite)."""
+    """Claim a pending lc0 job and mark it as running."""
     is_pg = ENGINE.dialect.name == "postgresql"
     stmt = (
         select(AnalysisJob)
@@ -63,12 +66,14 @@ def _claim_job(nodes: int) -> _ClaimedJob | None:
 
 
 def _load_pgn(game_id: str) -> str:
+    """Load PGN text for a game from the database."""
     with get_session() as session:
         game = session.get(Game, game_id)
         return game.pgn if game and game.pgn else ""
 
 
 def _save_analysis(job: _ClaimedJob, result) -> None:
+    """Save lc0 analysis result to Lc0GameAnalysis and Lc0MoveAnalysis tables."""
     with get_session() as session:
         lga = session.execute(
             select(Lc0GameAnalysis).where(Lc0GameAnalysis.game_id == job.game_id)
@@ -126,6 +131,7 @@ def _save_analysis(job: _ClaimedJob, result) -> None:
 
 
 def _mark_completed(job_id: int) -> None:
+    """Mark a job as completed."""
     with get_session() as session:
         job = session.get(AnalysisJob, job_id)
         if job:
@@ -135,6 +141,7 @@ def _mark_completed(job_id: int) -> None:
 
 
 def _mark_failed(job_id: int, error: str) -> None:
+    """Mark a job as failed and increment retry count."""
     with get_session() as session:
         job = session.get(AnalysisJob, job_id)
         if job:
@@ -150,6 +157,7 @@ def _heartbeat(
     jobs_completed: int = 0,
     jobs_failed: int = 0,
 ) -> None:
+    """Upsert or create worker heartbeat record for crash detection and status monitoring."""
     try:
         with get_session() as session:
             row = session.get(WorkerHeartbeat, _WORKER_ID)
@@ -172,6 +180,7 @@ _STALE_MINUTES = 15
 
 
 def _recover_stale_jobs() -> int:
+    """Reset lc0 jobs stuck in 'running' state longer than _STALE_MINUTES back to 'pending' for recovery."""
     from sqlalchemy import update
 
     cutoff = datetime.utcnow() - timedelta(minutes=_STALE_MINUTES)

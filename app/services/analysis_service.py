@@ -1,3 +1,8 @@
+"""Game analysis service for retrieving and reconstructing game moves with Stockfish and Lc0 evaluations.
+
+Loads game data from database, parses PGN, and assembles move-by-move analysis with accuracy
+metrics, classifications, and WDL probabilities from both Stockfish and Lc0 engines.
+"""
 from __future__ import annotations
 
 import io
@@ -20,6 +25,7 @@ from app.storage.models import (
 
 @dataclass
 class GameAnalysisData:
+    """Container for complete game analysis including moves, ratings, and engine evaluations."""
     game_id: str
     white: str
     black: str
@@ -66,10 +72,13 @@ class GameAnalysisData:
 
 
 class AnalysisService:
+    """Retrieves and reconstructs game analysis from database."""
     def __init__(self) -> None:
+        """Initialize database."""
         init_db()
 
     def get_game_analysis(self, game_id: str) -> GameAnalysisData | None:
+        """Load game analysis from database; reconstruct moves from PGN if Stockfish analysis unavailable."""
         if not game_id:
             return None
 
@@ -240,6 +249,7 @@ def _lc0_summary_kwargs(lga: "Lc0GameAnalysis | None") -> dict:
 
 
 def _lc0_moves_from_db(move_rows: list["Lc0MoveAnalysis"]) -> pd.DataFrame:
+    """Convert Lc0 move analysis database records to DataFrame with sorted plies."""
     sorted_moves = sorted(move_rows, key=lambda m: m.ply)
     rows = [
         {
@@ -266,6 +276,7 @@ def _lc0_moves_from_db(move_rows: list["Lc0MoveAnalysis"]) -> pd.DataFrame:
 
 
 def _moves_from_db(move_rows: list[MoveAnalysis]) -> pd.DataFrame:
+    """Convert Stockfish move analysis database records to DataFrame with sorted plies."""
     sorted_moves = sorted(move_rows, key=lambda m: m.ply)
     rows = [
         {

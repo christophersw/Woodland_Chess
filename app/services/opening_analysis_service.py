@@ -1,3 +1,8 @@
+"""Opening analysis service for statistical analysis of opening repertoires and frequency.
+
+Computes opening metrics, win rates, timelines, family distributions, and variation flows
+from game history with configurable player and color filters.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,29 +21,36 @@ from app.storage.models import Game, GameAnalysis, GameParticipant, MoveAnalysis
 
 @dataclass
 class OpeningMetricsFilters:
+    """Filter parameters for opening analysis: player and color."""
     player: str | None = None
     color: str | None = None
 
 
 class OpeningAnalysisService:
+    """Analyzes opening repertoire statistics and trends from game history."""
     def __init__(self) -> None:
+        """Initialize with config settings and database."""
         self._settings = get_settings()
         init_db()
 
     def list_players(self) -> list[str]:
+        """Return all players in database."""
         with get_session() as session:
             rows = session.scalars(select(Player.username).order_by(Player.username)).all()
         return list(rows)
 
     def club_recent_games(self, limit: int | None = None) -> pd.DataFrame:
+        """Get recent games for entire club with opening data."""
         return self._recent_games(limit=limit)
 
     def player_recent_games(self, player: str, limit: int | None = None) -> pd.DataFrame:
+        """Get recent games for specific player with opening data."""
         if not player:
             return pd.DataFrame()
         return self._recent_games(limit=limit, player=player)
 
     def opening_metrics_table(self, df: pd.DataFrame, filters: OpeningMetricsFilters | None = None) -> pd.DataFrame:
+        """Aggregate opening statistics: wins, losses, draws, averages by opening."""
         if df.empty:
             return pd.DataFrame()
 
@@ -71,6 +83,7 @@ class OpeningAnalysisService:
         return grouped.sort_values(["games", "win_pct"], ascending=[False, False]).reset_index(drop=True)
 
     def opening_timeline(self, df: pd.DataFrame, top_n: int = 20, bucket: str | None = None) -> pd.DataFrame:
+        """Create timeline of top openings bucketed by day, week, or month."""
         if df.empty:
             return pd.DataFrame()
 
@@ -101,6 +114,7 @@ class OpeningAnalysisService:
         return timeline
 
     def opening_family_fingerprint(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Compute opening family distribution: King's Pawn, Queen's Pawn, etc."""
         if df.empty:
             return pd.DataFrame()
 
@@ -115,6 +129,7 @@ class OpeningAnalysisService:
         return pd.DataFrame(rows)
 
     def opening_flow(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Create opening family-to-variation flow for Sankey visualization."""
         if df.empty:
             return pd.DataFrame()
 
@@ -130,6 +145,7 @@ class OpeningAnalysisService:
         return flow.head(40)
 
     def _recent_games(self, limit: int | None = None, player: str | None = None) -> pd.DataFrame:
+        """Fetch recent games with opening data; cache-friendly via ELO snapshot at move 10."""
         effective_limit = limit
         if effective_limit is None:
             configured_cap = int(self._settings.opening_analysis_max_rows)
@@ -204,6 +220,7 @@ class OpeningAnalysisService:
         opening_name: str | None,
         pgn_text: str | None,
     ) -> str:
+        """Get display-friendly opening label from ECO and name fields."""
         return opening_display_label(eco_code, lichess_opening, opening_name, pgn_text)
 
     @staticmethod
@@ -213,6 +230,7 @@ class OpeningAnalysisService:
         opening_name: str | None,
         pgn_text: str | None,
     ) -> str:
+        """Classify opening into family: King's Pawn, Queen's Pawn, Indian Defense, Flank, Other."""
         eco = (eco_code or "").strip().upper()
         name = opening_display_label(eco_code, lichess_opening, opening_name, pgn_text).lower()
 
@@ -237,6 +255,7 @@ class OpeningAnalysisService:
 
     @staticmethod
     def _variation_name(label: str) -> str:
+        """Extract variation name from full opening label (suffix after colon)."""
         text = str(label or "").strip()
         if not text:
             return "Unknown"
@@ -249,6 +268,7 @@ class OpeningAnalysisService:
 
     @staticmethod
     def _game_length_plies(pgn_text: str) -> int | None:
+        """Parse PGN to count total plies (moves from both sides)."""
         pgn = str(pgn_text or "").strip()
         if not pgn:
             return None
@@ -260,6 +280,7 @@ class OpeningAnalysisService:
 
     @staticmethod
     def _default_timeline_bucket(df: pd.DataFrame) -> str:
+        """Infer time bucketing (day/week/month) from date span."""
         played = pd.to_datetime(df["played_at"], errors="coerce")
         if played.empty:
             return "W"

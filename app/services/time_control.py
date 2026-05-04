@@ -1,7 +1,12 @@
+"""Time control formatting service for display-friendly chess time control strings.
+
+Converts standard Chess.com/Lichess time control notation to human-readable format.
+"""
 from __future__ import annotations
 
 
 def _seconds_to_human(seconds: int) -> str:
+    """Convert seconds to human-readable duration string."""
     if seconds % 86400 == 0:
         days = seconds // 86400
         return f"{days} day{'s' if days != 1 else ''}"
@@ -15,6 +20,7 @@ def _seconds_to_human(seconds: int) -> str:
 
 
 def format_time_control(value: str | None) -> str:
+    """Format time control string (base, increment, or correspondence) to human-readable format."""
     if not value:
         return "Unknown"
 

@@ -12,12 +12,16 @@ _SCRIPT = Path(__file__).resolve().parents[3] / "app" / "ingest" / "run_analysis
 
 
 class Command(BaseCommand):
+    """Django management command to run Stockfish engine analysis worker."""
+
     help = "Run the Stockfish analysis worker (processes pending analysis_jobs)."
 
     def add_arguments(self, parser):
+        """Register command-line arguments."""
         parser.add_argument("--once", action="store_true", help="Process one job then exit.")
 
     def handle(self, *args, **options):
+        """Start Stockfish worker process."""
         cmd = [sys.executable, str(_SCRIPT)]
         if options["once"]:
             cmd.append("--once")

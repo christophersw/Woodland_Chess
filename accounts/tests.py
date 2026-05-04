@@ -1,3 +1,3 @@
-from django.test import TestCase
+"""Unit tests for the accounts app (user model, authentication, and forms)."""
 
-# Create your tests here.
+from django.test import TestCase

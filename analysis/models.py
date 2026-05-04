@@ -1,7 +1,12 @@
+"""Database models for chess game analysis storage and retrieval.
+
+Includes models for engine-based analysis (Stockfish), Lc0 analysis, and job queue management.
+"""
 from django.db import models
 
 
 class GameAnalysis(models.Model):
+    """Stores Stockfish engine analysis metrics for a complete game."""
     game = models.OneToOneField(
         "games.Game", on_delete=models.CASCADE, related_name="analysis"
     )
@@ -25,22 +30,26 @@ class GameAnalysis(models.Model):
         verbose_name_plural = "Game Analyses"
 
     def __str__(self):
+        """Return a human-readable identifier for this analysis."""
         return f"Analysis for {self.game_id}"
 
     @property
     def avg_accuracy(self):
+        """Calculate average accuracy across both players, or return single value if only one exists."""
         if self.white_accuracy is not None and self.black_accuracy is not None:
             return (self.white_accuracy + self.black_accuracy) / 2
         return self.white_accuracy or self.black_accuracy
 
     @property
     def avg_acpl(self):
+        """Calculate average centipawn loss across both players, or return single value if only one exists."""
         if self.white_acpl is not None and self.black_acpl is not None:
             return (self.white_acpl + self.black_acpl) / 2
         return self.white_acpl or self.black_acpl
 
 
 class MoveAnalysis(models.Model):
+    """Stores Stockfish engine evaluation and classification for individual moves."""
     analysis = models.ForeignKey(
         GameAnalysis, on_delete=models.CASCADE, related_name="moves"
     )
@@ -66,18 +75,22 @@ class MoveAnalysis(models.Model):
         verbose_name_plural = "Move Analyses"
 
     def __str__(self):
+        """Return a human-readable identifier for this move analysis."""
         return f"Ply {self.ply} ({self.san}) in analysis {self.analysis_id}"
 
     @property
     def is_white_move(self):
+        """Check if this move is played by White (odd plies are White moves)."""
         return self.ply % 2 == 1
 
     @property
     def move_number(self):
+        """Calculate the move number (1-indexed) from the ply count."""
         return (self.ply + 1) // 2
 
 
 class Lc0GameAnalysis(models.Model):
+    """Stores Lc0 neural network engine analysis with win/draw/loss probabilities."""
     game = models.OneToOneField(
         "games.Game", on_delete=models.CASCADE, related_name="lc0_analysis"
     )
@@ -103,10 +116,12 @@ class Lc0GameAnalysis(models.Model):
         verbose_name_plural = "Lc0 Game Analyses"
 
     def __str__(self):
+        """Return a human-readable identifier for this Lc0 analysis."""
         return f"Lc0 analysis for {self.game_id}"
 
 
 class Lc0MoveAnalysis(models.Model):
+    """Stores Lc0 engine evaluation and win/draw/loss metrics for individual moves."""
     analysis = models.ForeignKey(
         Lc0GameAnalysis, on_delete=models.CASCADE, related_name="moves"
     )
@@ -135,18 +150,22 @@ class Lc0MoveAnalysis(models.Model):
         verbose_name_plural = "Lc0 Move Analyses"
 
     def __str__(self):
+        """Return a human-readable identifier for this Lc0 move analysis."""
         return f"Lc0 ply {self.ply} ({self.san}) in analysis {self.analysis_id}"
 
     @property
     def is_white_move(self):
+        """Check if this move is played by White (odd plies are White moves)."""
         return self.ply % 2 == 1
 
     @property
     def move_number(self):
+        """Calculate the move number (1-indexed) from the ply count."""
         return (self.ply + 1) // 2
 
 
 class AnalysisJob(models.Model):
+    """Tracks asynchronous analysis jobs for games, including status and engine configuration."""
     STATUS_PENDING = "pending"
     STATUS_SUBMITTED = "submitted"
     STATUS_RUNNING = "running"
@@ -190,10 +209,12 @@ class AnalysisJob(models.Model):
         verbose_name_plural = "Analysis Jobs"
 
     def __str__(self):
+        """Return a human-readable identifier for this analysis job."""
         return f"{self.engine} job [{self.status}] for {self.game_id}"
 
 
 class WorkerHeartbeat(models.Model):
+    """Monitors health and status of remote analysis workers."""
     worker_id = models.CharField(max_length=64, primary_key=True)
     last_seen = models.DateTimeField(auto_now=True)
     status = models.CharField(max_length=16, default="idle")
@@ -212,4 +233,5 @@ class WorkerHeartbeat(models.Model):
         verbose_name_plural = "Worker Heartbeats"
 
     def __str__(self):
+        """Return a human-readable identifier for this worker heartbeat."""
         return f"Worker {self.worker_id} [{self.status}]"

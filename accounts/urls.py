@@ -1,3 +1,5 @@
+"""URL routes for authentication views (login and logout)."""
+
 from django.urls import path
 from . import views
 

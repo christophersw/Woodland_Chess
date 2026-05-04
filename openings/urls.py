@@ -1,3 +1,5 @@
+"""URL patterns for the openings app."""
+
 from django.urls import path
 from . import views
 

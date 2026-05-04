@@ -1,3 +1,7 @@
+"""Django settings for the Wood League Chess application.
+
+Configures database, installed apps, middleware, templates, static files, authentication, and third-party service keys (Anthropic, Chess.com).
+"""
 from pathlib import Path
 
 from decouple import Csv, config

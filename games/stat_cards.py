@@ -9,6 +9,7 @@ from games.services import GameAnalysisData
 
 
 def _acc_color(pct: float) -> str:
+    """Return hex color code for accuracy percentage."""
     if pct >= 90:
         return "#1A3A2A"
     if pct >= 80:
@@ -19,6 +20,7 @@ def _acc_color(pct: float) -> str:
 
 
 def _bar_row(sym: str, name: str, pct: float, val_str: str, fill: str | None = None) -> str:
+    """Generate HTML for a single stat bar row with player label and value."""
     color = fill or _acc_color(pct)
     w = min(max(pct, 0), 100)
     return (
@@ -31,7 +33,9 @@ def _bar_row(sym: str, name: str, pct: float, val_str: str, fill: str | None = N
 
 
 def _wdl_row(sym: str, name: str, win: float, draw: float, loss: float) -> str:
+    """Generate HTML for Win/Draw/Loss probability row."""
     def _seg(cls: str, pct: float, lbl: str) -> str:
+        """Build a single segment of the WDL stack."""
         txt = lbl if pct >= 9 else ""
         return f'<div class="dub-seg {cls}" style="flex:{pct:.1f}">{escape(txt)}</div>'
 
@@ -51,10 +55,12 @@ def _wdl_row(sym: str, name: str, win: float, draw: float, loss: float) -> str:
 
 def _quality_row(sym: str, name: str, brilliant: int, best: int, great: int,
                  inaccuracy: int, mistake: int, blunder: int, total: int) -> str:
+    """Generate HTML for move quality classification row."""
     classified = brilliant + best + great + inaccuracy + mistake + blunder
     neutral = max(0, total - classified)
 
     def _seg(cls: str, n: int, lbl: str) -> str:
+        """Build a single classification segment."""
         if n == 0 or total == 0:
             return ""
         pct = n / total * 100
@@ -84,6 +90,7 @@ def _quality_row(sym: str, name: str, brilliant: int, best: int, great: int,
 
 
 def _count(n: Optional[int], label: str, cls: str) -> str:
+    """Generate HTML span for a single error/quality count."""
     if n is None:
         return ""
     return (
@@ -95,6 +102,7 @@ def _count(n: Optional[int], label: str, cls: str) -> str:
 
 
 def _counts_row(sym: str, name: str, items: list[tuple]) -> str:
+    """Generate HTML for a row displaying multiple error/quality counts."""
     spans = "".join(_count(n, lbl, cls) for n, lbl, cls in items)
     return (
         f'<div class="dub-counts-row">'
@@ -148,6 +156,7 @@ _DUB_CSS = """<style>
 
 
 def _count_classified(moves, white_to_move: bool, cls: str) -> Optional[int]:
+    """Count moves with a specific classification for one side."""
     mod = 1 if white_to_move else 0
     side = [m for m in moves if m.ply % 2 == mod]
     if not side:
@@ -156,6 +165,7 @@ def _count_classified(moves, white_to_move: bool, cls: str) -> Optional[int]:
 
 
 def build_sf_card(data: GameAnalysisData) -> str:
+    """Generate Stockfish analysis stat card HTML or empty string if no data."""
     if not data.has_sf:
         return ""
 
@@ -242,6 +252,7 @@ def build_sf_card(data: GameAnalysisData) -> str:
 
 
 def build_lc0_card(data: GameAnalysisData) -> str:
+    """Generate Lc0 neural network stat card HTML or empty string if no data."""
     if not data.has_lc0:
         return ""
     if (data.lc0_white_win_prob is None and data.lc0_black_win_prob is None):

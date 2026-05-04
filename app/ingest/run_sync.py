@@ -1,3 +1,7 @@
+"""CLI entry point for syncing Chess.com player archives to local database.
+
+Fetches games and game records from Chess.com for configured player accounts.
+"""
 from __future__ import annotations
 
 import argparse
@@ -8,6 +12,7 @@ from app.ingest.sync_service import ChessComSyncService
 
 
 def _render_bar(current: int, total: int, width: int = 28) -> str:
+    """Render a simple ASCII progress bar for archive sync status."""
     if total <= 0:
         return "[no archives]"
     ratio = max(0.0, min(1.0, current / total))
@@ -16,6 +21,7 @@ def _render_bar(current: int, total: int, width: int = 28) -> str:
 
 
 def main() -> None:
+    """CLI entry point: sync Chess.com player archives to database with progress display."""
     parser = argparse.ArgumentParser(description="Sync Chess.com archives into local database")
     parser.add_argument(
         "--usernames",

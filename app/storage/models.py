@@ -1,3 +1,7 @@
+"""SQLAlchemy ORM models for Wood League Chess application.
+
+Defines all database models: Players, Users, Games, GameParticipant, GameAnalysis, Lc0GameAnalysis, AnalysisJob, SystemEvent, and related move analysis models.
+"""
 from __future__ import annotations
 
 from datetime import datetime
@@ -17,10 +21,12 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
+    """SQLAlchemy declarative base for all ORM models."""
     pass
 
 
 class Player(Base):
+    """Chess.com player record with username and profile information."""
     __tablename__ = "players"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -33,6 +39,7 @@ class Player(Base):
 
 
 class User(Base):
+    """Django application user with authentication and role management."""
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -44,6 +51,7 @@ class User(Base):
 
 
 class Game(Base):
+    """Chess game record from Chess.com with PGN, time control, and participant info."""
     __tablename__ = "games"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -78,6 +86,7 @@ class Game(Base):
 
 
 class GameParticipant(Base):
+    """Links a Player to a Game with color, opponent, rating, and quality metrics."""
     __tablename__ = "game_participants"
     __table_args__ = (
         UniqueConstraint("game_id", "player_id", name="uq_game_participant"),
@@ -102,6 +111,7 @@ class GameParticipant(Base):
 
 
 class GameAnalysis(Base):
+    """Stockfish game analysis with accuracy, blunders, and per-move evaluations."""
     __tablename__ = "game_analysis"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -129,6 +139,7 @@ class GameAnalysis(Base):
 
 
 class MoveAnalysis(Base):
+    """Stockfish analysis of a single move including evaluation, alternatives, and classification."""
     __tablename__ = "move_analysis"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -152,6 +163,7 @@ class MoveAnalysis(Base):
 
 
 class OpeningBook(Base):
+    """Chess opening reference with ECO code, name, PGN, and EPD."""
     __tablename__ = "opening_book"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -162,6 +174,7 @@ class OpeningBook(Base):
 
 
 class AnalysisJob(Base):
+    """Queued analysis job for either Stockfish or Lc0 engine with status and worker tracking."""
     __tablename__ = "analysis_jobs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -184,6 +197,7 @@ class AnalysisJob(Base):
 
 
 class WorkerHeartbeat(Base):
+    """Worker process heartbeat and status tracking for crash detection and monitoring."""
     __tablename__ = "worker_heartbeats"
 
     worker_id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -200,6 +214,7 @@ class WorkerHeartbeat(Base):
 
 
 class Lc0GameAnalysis(Base):
+    """Lc0 (Leela Chess Zero) WDL (Win/Draw/Loss) probability analysis of a game."""
     __tablename__ = "lc0_game_analysis"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -229,6 +244,7 @@ class Lc0GameAnalysis(Base):
 
 
 class Lc0MoveAnalysis(Base):
+    """Lc0 analysis of a single move including WDL probabilities and equivalence scores."""
     __tablename__ = "lc0_move_analysis"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -257,6 +273,7 @@ class Lc0MoveAnalysis(Base):
 
 
 class SystemEvent(Base):
+    """System-wide event log for ingest, analysis, and other background processes."""
     __tablename__ = "system_events"
 
     id: Mapped[int] = mapped_column(primary_key=True)

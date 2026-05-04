@@ -1,3 +1,5 @@
+"""Views for rendering game analysis pages."""
+
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import Http404
 
@@ -8,6 +10,7 @@ from games.stat_cards import build_stat_cards_html
 
 
 def game_analysis(request, slug):
+    """Render interactive game analysis page with board viewer and stat cards."""
     game = get_object_or_404(Game, slug=slug)
     data = get_game_analysis(slug)
 

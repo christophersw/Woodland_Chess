@@ -1,7 +1,10 @@
+"""Login form with email and password fields for user authentication."""
+
 from django import forms
 
 
 class LoginForm(forms.Form):
+    """HTML form for user login with email and password inputs styled with Tailwind CSS."""
     email = forms.EmailField(
         widget=forms.EmailInput(attrs={
             "autofocus": True,

@@ -1,3 +1,7 @@
+"""Application configuration and settings management via Pydantic.
+
+Defines the Settings class that loads configuration from environment variables and .env files.
+"""
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,10 +32,12 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     def chess_usernames(self) -> list[str]:
+        """Parse and normalize comma-separated Chess.com usernames."""
         if not self.chess_com_usernames.strip():
             return []
         return [u.strip().lower() for u in self.chess_com_usernames.split(",") if u.strip()]
 
 
 def get_settings() -> Settings:
+    """Factory function to create and return a Settings instance."""
     return Settings()

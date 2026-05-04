@@ -1,3 +1,8 @@
+"""Game search service using Claude AI to parse natural language queries into SQL.
+
+Translates user game search requests into parameterized SQL queries with sanitization,
+supports keyword search, and integrates with Anthropic API for NL-to-SQL generation.
+"""
 from __future__ import annotations
 
 import json
@@ -24,6 +29,7 @@ MAX_RESULTS = 200
 
 @dataclass(frozen=True)
 class SearchPlan:
+    """Immutable result of Claude-generated search plan with SQL and reasoning."""
     sql_query: str
     reasoning: str = ""
     raw_response: str = ""
@@ -32,6 +38,7 @@ class SearchPlan:
 
 
 class SearchPlanError(ValueError):
+    """Exception for search plan generation or validation failures with context."""
     def __init__(
         self,
         message: str,
@@ -50,6 +57,7 @@ class SearchPlanError(ValueError):
 
 @lru_cache(maxsize=1)
 def _schema_context() -> str:
+    """Return cached database schema and SQL generation rules for Claude prompt."""
     return """
 You convert natural-language game search requests into safe PostgreSQL SELECT queries.
 Return JSON only with keys: sql_query, reasoning.
@@ -294,15 +302,18 @@ def _player_directory_context() -> str:
 
 
 def is_anthropic_available() -> bool:
+    """Check if Anthropic API key is configured."""
     return bool(get_settings().anthropic_api_key.strip())
 
 
 def get_anthropic_model() -> str:
+    """Get configured Anthropic model or default to Haiku."""
     configured = get_settings().anthropic_model.strip()
     return configured or DEFAULT_ANTHROPIC_MODEL
 
 
 def _extract_text(response_json: dict[str, Any]) -> str:
+    """Extract text content from Anthropic API response."""
     parts = []
     for item in response_json.get("content", []):
         if item.get("type") == "text":
@@ -311,6 +322,7 @@ def _extract_text(response_json: dict[str, Any]) -> str:
 
 
 def _extract_json(raw_text: str) -> dict[str, Any]:
+    """Parse JSON from text, handling markdown code blocks."""
     cleaned = raw_text.strip()
     if cleaned.startswith("```"):
         cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
@@ -324,6 +336,7 @@ def _extract_json(raw_text: str) -> dict[str, Any]:
 
 
 def _sanitize_sql(candidate_sql: str) -> str:
+    """Validate and sanitize SQL to prevent injection; enforce allowed tables and LIMIT."""
     if not candidate_sql:
         raise ValueError("Claude did not generate SQL.")
 
@@ -410,6 +423,7 @@ def _sanitize_sql(candidate_sql: str) -> str:
 
 
 def generate_search_plan(user_query: str) -> SearchPlan:
+    """Call Anthropic API to translate user query into sanitized SQL search plan."""
     query = user_query.strip()
     if not query:
         raise ValueError("Please enter a search query.")
@@ -508,6 +522,7 @@ def generate_search_plan(user_query: str) -> SearchPlan:
 
 
 def execute_sql_search(sql_query: str) -> list[dict[str, Any]]:
+    """Execute sanitized SQL query and return results as list of dicts."""
     init_db()
     # Validate at sink as a defense-in-depth control before executing raw text.
     safe_sql = _sanitize_sql(sql_query)
@@ -520,6 +535,7 @@ def execute_sql_search(sql_query: str) -> list[dict[str, Any]]:
 
 
 def keyword_game_search(query: str, limit: int = 200) -> pd.DataFrame:
+    """Full-text search across usernames, openings, and game metadata."""
     init_db()
     q = query.strip()
     if not q:
@@ -578,6 +594,7 @@ def keyword_game_search(query: str, limit: int = 200) -> pd.DataFrame:
 
 
 def recent_games_for_player(player: str, limit: int = 200) -> pd.DataFrame:
+    """Fetch recent games for a player with evaluation data."""
     filters = HistoryFilters(player=player, lookback_days=3650, recent_limit=limit)
     service = HistoryService()
     return service.get_recent_games_with_eval(filters)
