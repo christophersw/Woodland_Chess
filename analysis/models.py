@@ -66,6 +66,9 @@ class MoveAnalysis(models.Model):
     arrow_score_2 = models.FloatField(null=True, blank=True)
     arrow_score_3 = models.FloatField(null=True, blank=True)
     classification = models.CharField(max_length=16, null=True, blank=True)
+    pv_san_1 = models.TextField(null=True, blank=True)
+    pv_san_2 = models.TextField(null=True, blank=True)
+    pv_san_3 = models.TextField(null=True, blank=True)
 
     class Meta:
         db_table = "move_analysis"
@@ -141,6 +144,9 @@ class Lc0MoveAnalysis(models.Model):
     arrow_score_3 = models.FloatField(null=True, blank=True)
     move_win_delta = models.FloatField(null=True, blank=True)
     classification = models.CharField(max_length=16, null=True, blank=True)
+    pv_san_1 = models.TextField(null=True, blank=True)
+    pv_san_2 = models.TextField(null=True, blank=True)
+    pv_san_3 = models.TextField(null=True, blank=True)
 
     class Meta:
         db_table = "lc0_move_analysis"

@@ -4,7 +4,6 @@ Configures database, installed apps, middleware, templates, static files, authen
 """
 from pathlib import Path
 
-import dj_database_url
 from decouple import Csv, config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -69,6 +68,12 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 _database_url = config("DATABASE_URL", default="")
 if _database_url:
+    try:
+        import dj_database_url
+    except ImportError as exc:
+        raise RuntimeError(
+            "DATABASE_URL is set, but dj-database-url is not installed."
+        ) from exc
     DATABASES = {"default": dj_database_url.parse(_database_url, conn_max_age=600)}
 else:
     DATABASES = {

@@ -75,9 +75,10 @@
     <span class="pg-title">Move Analysis</span>
   </div>
 
-  <div style="display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:24px;align-items:start;">
+  {# Boards row (main board + engine lines board) #}
+  <div id="boards-container" style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px;align-items:start;">
 
-    {# ── Board + PGN ────────────────────────────────────────────────────── #}
+    {# ── Main Board + PGN (Left) ────────────────────────────────────────── #}
     <div style="display:flex;flex-direction:column;gap:12px;min-width:0;">
 
       {# Board loaded by HTMX on page load; reloaded on flip via htmx.ajax() #}
@@ -110,17 +111,44 @@
       </div>
     </div>
 
-    {# ── Charts ─────────────────────────────────────────────────────────── #}
-    <div style="display:flex;flex-direction:column;gap:16px;min-width:0;">
-      {% if has_lc0 %}
-      <div id="lc0-wdl-chart"></div>
-      {% endif %}
-      {% if has_sf %}
-      <div id="sf-eval-chart"></div>
-      {% endif %}
+    {# ── Engine Lines Board (Right) ────────────────────────────────────────── #}
+    <div style="display:flex;flex-direction:column;gap:12px;min-width:0;">
+
+      <div id="engine-lines-shell" style="position:relative;">
+        <div id="engine-lines-header" style="font-family:'DM Mono',monospace;font-size:.65rem;letter-spacing:.04em;
+                    text-transform:uppercase;color:#8B3A2A;padding:4px 6px 2px;border-top:2.5px solid #1A1A1A;border-bottom:1px solid #1A1A1A;
+                    height:24px;display:flex;align-items:center;background:rgba(242,230,208,.2);">
+          Click engine arrow to explore
+        </div>
+        <div id="engine-lines-container" style="position:relative;background:rgba(242,230,208,.1);border-left:2px solid #1A1A1A;border-right:2px solid #1A1A1A;min-height:520px;display:flex;align-items:center;justify-content:center;color:#8B3A2A;font-family:'DM Mono',monospace;font-size:.72rem;">
+          {# Engine Lines board will be loaded here via HTMX #}
+          <div id="engine-lines-loading" style="display:none;">Loading…</div>
+        </div>
+        <div id="engine-lines-controls" style="display:flex;align-items:center;gap:5px;padding:8px 0 6px;justify-content:center;border-top:1px solid #D4C4A0;flex-wrap:wrap;border-left:2px solid #1A1A1A;border-right:2px solid #1A1A1A;border-bottom:2px solid #1A1A1A;">
+          <button class="board-btn" id="engine-lines-btn-start" title="Start">&#x23EE;</button>
+          <button class="board-btn" id="engine-lines-btn-prev" title="Previous">&#x25C0;</button>
+          <button class="board-btn" id="engine-lines-btn-play" title="Play/Pause">&#x25B6;</button>
+          <button class="board-btn" id="engine-lines-btn-next" title="Next">&#x25B6;&#xFE0E;</button>
+          <button class="board-btn" id="engine-lines-btn-end" title="End">&#x23ED;</button>
+          <input type="range" id="engine-lines-slider" min="0" max="0" value="0" style="flex:1;max-width:220px;accent-color:#D4A843;" disabled>
+          <span id="engine-lines-ply-label" style="font-family:'DM Mono',monospace;font-size:.68rem;color:#8B3A2A;min-width:72px;text-align:center;letter-spacing:.04em;">—</span>
+          <button class="board-btn" id="engine-lines-btn-flip" title="Flip Board" style="margin-left:4px;">⇅</button>
+        </div>
+      </div>
     </div>
 
-  </div>{# end move-analysis grid #}
+  </div>{# end boards row #}
+
+  {# Charts row (full width) #}
+  <div style="display:grid;grid-template-columns:1fr;gap:16px;">
+    {% if has_lc0 %}
+    <div id="lc0-wdl-chart"></div>
+    {% endif %}
+    {% if has_sf %}
+    <div id="sf-eval-chart"></div>
+    {% endif %}
+  </div>
+
 </div>{# end pg-section #}
 
 {# Queue confirmation modal #}
@@ -168,6 +196,13 @@
     opacity: 1 !important;
     visibility: visible !important;
   }
+
+  /* Responsive layout: stack boards vertically on mobile */
+  @media (max-width: 1200px) {
+    #boards-container {
+      grid-template-columns: 1fr !important;
+    }
+  }
 </style>
 
 {# JSON data embedded in page for chart and PGN rendering #}
@@ -176,10 +211,12 @@
 <script type="application/json" id="pgn-moves-data">{{ pgn_moves_json|safe }}</script>
 
 <script src="{% static 'games/plySync.js' %}"></script>
+<script src="{% static 'games/engineLines.js' %}"></script>
 
 <script>
 // Shared analysis data for partials
 window.ANALYSIS_DATA = {
+  slug: "{{ game.slug }}",
   queue_url: "/_partials/games/{{ game.slug }}/queue/",
   board_url: "/_partials/games/{{ game.slug }}/board/",
   white: "{{ white|escapejs }}",

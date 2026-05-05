@@ -13,6 +13,7 @@ Changelog:
 import io as _io
 import json
 
+import chess
 import chess.pgn as _pgn
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
@@ -20,7 +21,7 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_POST
 
 from analysis.models import AnalysisJob
-from games.board_builder import build_board_frames
+from games.board_builder import build_board_frames, _BOARD_COLORS
 from games.models import Game
 from games.services import get_game_analysis
 from games.stat_cards import _DUB_CSS, build_lc0_card, build_sf_card
@@ -279,11 +280,158 @@ def board_partial(request: HttpRequest, slug: str) -> HttpResponse:
         "bottom_side": board_data["bottom_side"],
         "has_sf": board_data["has_sf"],
         "has_lc0": board_data["has_lc0"],
+        "no_arrows": False,
     })
 
 
-@login_required
-@require_POST
+def engine_line_partial(request: HttpRequest, slug: str) -> HttpResponse:
+    """
+    HTMX partial: render an engine line continuation board.
+
+    Called when user clicks an arrow on the main board. Reconstructs the board position
+    at the given ply, plays the specified move, and continues from there, displaying
+    up to 50+ moves of continuation.
+
+    Query params:
+        ply (int): Starting ply in the main game (before the clicked move).
+        move_uci (str): The UCI move to play (the clicked arrow).
+        engine (str): "sf" or "lc0" (which engine suggested this move).
+        tier (int): 1, 2, or 3 (which tier of suggestion this was).
+        orientation (str): "white" or "black" (perspective, must match main board).
+
+    Returns:
+        Rendered _engine_line_partial.html with the continuation board frames,
+        or error partial if unable to reconstruct position or find continuation data.
+    """
+    game = get_object_or_404(Game, slug=slug)
+    data = get_game_analysis(slug)
+
+    if data is None or not data.moves or not data.pgn:
+        return render(request, "games/_board_error_partial.html", {"game": game})
+
+    try:
+        ply = int(request.GET.get("ply", 0))
+    except (ValueError, TypeError):
+        ply = 0
+    ply = max(0, ply)
+
+    move_uci = request.GET.get("move_uci", "").strip()
+    if not move_uci or len(move_uci) < 4:
+        return HttpResponse("Invalid move_uci", status=400)
+
+    engine = request.GET.get("engine", "sf").strip().lower()
+    if engine not in ("sf", "lc0"):
+        engine = "sf"
+
+    try:
+        tier = int(request.GET.get("tier", 1))
+    except (ValueError, TypeError):
+        tier = 1
+    tier = max(1, min(3, tier))
+
+    orientation = request.GET.get("orientation", "white")
+    if orientation not in ("white", "black"):
+        orientation = "white"
+
+    # Reconstruct board position up to the given ply
+    game_obj = _pgn.read_game(_io.StringIO(data.pgn))
+    if game_obj is None:
+        return HttpResponse("Cannot parse PGN", status=400)
+
+    board = game_obj.board()
+    moves_list = list(game_obj.mainline_moves())
+
+    # Play moves up to the specified ply
+    moves_played_in_continuation = []
+    for i, move in enumerate(moves_list):
+        if i >= ply:
+            break
+        board.push(move)
+
+    # Play the clicked move
+    try:
+        clicked_move = board.parse_uci(move_uci)
+        board.push(clicked_move)
+        moves_played_in_continuation.append(clicked_move)
+    except (ValueError, AssertionError):
+        return HttpResponse("Invalid move_uci for position", status=400)
+
+    # Collect continuation moves from the game if they exist after this ply
+    # Otherwise, generate empty board frames (just the position after the move)
+    context_parts = ["Best" if tier == 1 else f"Move {tier}"]
+    context_parts.append(engine.upper())
+    context_parts.append(f"(ply {ply}+{len(moves_played_in_continuation)})")
+    context_label = " ".join(context_parts)
+
+    # Generate board frames for the continuation
+    # For now, we'll just show the continuation position with empty moves
+    # (We could extend this to show actual continuation if stored in DB)
+    flipped = orientation == "black"
+    
+    frames = []
+    san_list = []
+    arrow_labels_by_ply = {}
+
+    # Frame 0: position after the clicked move
+    frames.append(chess.svg.board(board, size=480, flipped=flipped, colors=_BOARD_COLORS))
+
+    # Try to continue with moves from the game (if this position continues in the actual game)
+    # This is a simplified version; a full implementation would show all continuation moves
+    continuation_board = board.copy()
+    continuation_moves = []
+    
+    # Find where we are in the game and continue from there if possible
+    current_board = game_obj.board()
+    moves_to_reach = []
+    for i, move in enumerate(moves_list):
+        if i >= ply:
+            break
+        moves_to_reach.append(move)
+    
+    # Play those moves to get to our position
+    for m in moves_to_reach:
+        current_board.push(m)
+    
+    # Try to play the clicked move in the game
+    try:
+        if current_board.parse_uci(move_uci) in current_board.legal_moves:
+            current_board.push(current_board.parse_uci(move_uci))
+            
+            # Collect remaining moves from the game
+            remaining_game_moves = []
+            for i, move in enumerate(moves_list):
+                if i > ply:
+                    remaining_game_moves.append(move)
+            
+            # Generate frames for continuation (up to 50+ moves)
+            for move_idx, move in enumerate(remaining_game_moves[:50]):
+                try:
+                    if move in continuation_board.legal_moves:
+                        san = continuation_board.san(move)
+                        continuation_board.push(move)
+                        san_list.append(san)
+                        
+                        frames.append(chess.svg.board(
+                            continuation_board,
+                            size=480,
+                            lastmove=move,
+                            flipped=flipped,
+                            colors=_BOARD_COLORS,
+                        ))
+                except (ValueError, AssertionError):
+                    break
+    except (ValueError, AssertionError):
+        pass
+
+    return render(request, "games/_engine_line_partial.html", {
+        "frames_json": json.dumps(frames),
+        "arrow_labels_json": json.dumps(arrow_labels_by_ply),
+        "san_list_json": json.dumps(san_list),
+        "context_label": context_label,
+        "total_frames": len(frames),
+    })
+
+
 def queue_analysis(request: HttpRequest, slug: str) -> HttpResponse:
     """
     Queue a game for engine re-analysis.

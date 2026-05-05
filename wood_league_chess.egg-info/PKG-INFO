@@ -1,3 +1,29 @@
+Metadata-Version: 2.4
+Name: wood-league-chess
+Version: 2.0.0
+Summary: Club chess analytics — Django + Tailwind + HTMX
+Requires-Python: <3.14,>=3.13
+Description-Content-Type: text/markdown
+Requires-Dist: django>=5.0
+Requires-Dist: psycopg2-binary
+Requires-Dist: gunicorn
+Requires-Dist: whitenoise
+Requires-Dist: python-decouple
+Requires-Dist: dj-database-url
+Requires-Dist: django-tailwind-cli
+Requires-Dist: django-htmx
+Requires-Dist: python-chess>=1.999
+Requires-Dist: plotly>=5.20.0
+Requires-Dist: pandas>=2.2.0
+Requires-Dist: anthropic
+Requires-Dist: sqlalchemy>=2.0.29
+Requires-Dist: psycopg[binary]>=3.2.0
+Requires-Dist: passlib[bcrypt]>=1.7.4
+Requires-Dist: pydantic-settings>=2.8.0
+Requires-Dist: requests>=2.32.2
+Requires-Dist: tqdm>=4.66.0
+Requires-Dist: runpod>=1.7.0
+
 # Wood League Chess
 
 Wood League Chess is a private chess club analytics platform built with Django, Tailwind CSS v4, and HTMX. It ingests games from Chess.com, runs them through Stockfish and Lc0 engine workers, and surfaces club-wide trends, per-game analysis, opening statistics, and AI-powered game search.

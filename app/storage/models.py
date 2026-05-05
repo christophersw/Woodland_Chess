@@ -158,6 +158,9 @@ class MoveAnalysis(Base):
     arrow_score_2: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     arrow_score_3: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     classification: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    pv_san_1: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    pv_san_2: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    pv_san_3: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     analysis: Mapped[GameAnalysis] = relationship(back_populates="moves")
 
@@ -268,6 +271,9 @@ class Lc0MoveAnalysis(Base):
     arrow_score_3: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     move_win_delta: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     classification: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    pv_san_1: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    pv_san_2: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    pv_san_3: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     analysis: Mapped[Lc0GameAnalysis] = relationship(back_populates="moves")
 

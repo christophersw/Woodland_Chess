@@ -36,6 +36,7 @@
 
   {# Arrow visibility toggles #}
   {% if has_sf or has_lc0 %}
+  {% if not no_arrows %}
   <div class="arrow-toggles">
     {% if has_sf %}
     <label class="arrow-toggle-label" style="color:#D4A843;">
@@ -50,6 +51,7 @@
     </label>
     {% endif %}
   </div>
+  {% endif %}
   {% endif %}
 </div>
 
@@ -93,16 +95,20 @@
   }
 
   function applyArrowVisibility() {
+    {% if not no_arrows %}
     var sfToggle = document.getElementById('board-sf-toggle');
     var lc0Toggle = document.getElementById('board-lc0-toggle');
     var showSF = sfToggle ? sfToggle.checked : true;
     var showLc0 = lc0Toggle ? lc0Toggle.checked : true;
+    
+    // Hide/show arrows
     svgWrap.querySelectorAll('line[stroke*="D4A843"],polygon[fill*="D4A843"]').forEach(function (el) {
       el.style.display = showSF ? '' : 'none';
     });
     svgWrap.querySelectorAll('line[stroke*="4A6E8A"],polygon[fill*="4A6E8A"]').forEach(function (el) {
       el.style.display = showLc0 ? '' : 'none';
     });
+    {% endif %}
   }
   window.boardApplyArrowVisibility = applyArrowVisibility;
 

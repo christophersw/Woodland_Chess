@@ -14,5 +14,6 @@ from . import views
 
 urlpatterns = [
     path("games/<slug:slug>/board/", views.board_partial, name="games_board_partial"),
+    path("games/<slug:slug>/engine-line/", views.engine_line_partial, name="games_engine_line_partial"),
     path("games/<slug:slug>/queue/", views.queue_analysis, name="games_queue_analysis"),
 ]

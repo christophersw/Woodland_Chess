@@ -10,6 +10,7 @@ dependencies = [
   "gunicorn",
   "whitenoise",
   "python-decouple",
+  "dj-database-url",
   "django-tailwind-cli",
   "django-htmx",
   "python-chess>=1.999",
