@@ -59,10 +59,10 @@
 
 {% else %}
 
-{# ── Engine Analysis section ───────────────────────────────────────────── #}
+{# ── Game Analysis section ───────────────────────────────────────────── #}
 <div class="pg-section" style="margin-bottom:2rem;">
   <div class="pg-head">
-    <span class="pg-title">Engine Analysis</span>
+    <span class="pg-title">Game Analysis</span>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;">
     {{ engine_cards_html|safe }}
@@ -122,21 +122,23 @@
       </div>
 
       {# PGN move table #}
-      <div class="move-list-panel">
-        <div class="move-list-title">Moves</div>
-        <div id="pgn-table-wrap" class="move-list-wrap">
-          <table id="pgn-table" class="move-list-table">
-            <thead>
-              <tr>
-                <th class="move-list-number-header"></th>
-                <th>White</th>
-                <th>Black</th>
-              </tr>
-            </thead>
-            <tbody id="pgn-tbody"></tbody>
-          </table>
+      <details id="pgn-panel" class="move-list-panel">
+        <summary class="move-list-summary">Moves</summary>
+        <div class="move-list-body">
+          <div id="pgn-table-wrap" class="move-list-wrap">
+            <table id="pgn-table" class="move-list-table">
+              <thead>
+                <tr>
+                  <th class="move-list-number-header"></th>
+                  <th>White</th>
+                  <th>Black</th>
+                </tr>
+              </thead>
+              <tbody id="pgn-tbody"></tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </details>
     </div>
 
     {# ── Engine Lines Board (Right) ────────────────────────────────────────── #}
@@ -164,21 +166,23 @@
         </div>
       </div>
 
-      <div id="engine-line-san-panel" class="move-list-panel" style="display:none;">
-        <div class="move-list-title">Continuation</div>
-        <div id="engine-line-table-wrap" class="move-list-wrap">
-          <table id="engine-line-table" class="move-list-table">
-            <thead>
-              <tr>
-                <th class="move-list-number-header"></th>
-                <th>White</th>
-                <th>Black</th>
-              </tr>
-            </thead>
-            <tbody id="engine-line-tbody"></tbody>
-          </table>
+      <details id="engine-line-san-panel" class="move-list-panel" style="display:none;">
+        <summary class="move-list-summary">Continuation</summary>
+        <div class="move-list-body">
+          <div id="engine-line-table-wrap" class="move-list-wrap">
+            <table id="engine-line-table" class="move-list-table">
+              <thead>
+                <tr>
+                  <th class="move-list-number-header"></th>
+                  <th>White</th>
+                  <th>Black</th>
+                </tr>
+              </thead>
+              <tbody id="engine-line-tbody"></tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </details>
     </div>
 
   </div>{# end boards row #}
@@ -318,13 +322,36 @@
     border-bottom: 1.5px solid #1A1A1A;
   }
 
-  .move-list-title {
+  .move-list-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     font-family: 'DM Mono', monospace;
     font-size: .54rem;
     letter-spacing: .12em;
     text-transform: uppercase;
     color: #5A5A5A;
-    padding: 4px 6px 2px;
+    padding: 4px 6px 4px;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .move-list-summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .move-list-summary::after {
+    content: '+';
+    font-size: .8rem;
+    color: #8B3A2A;
+  }
+
+  .move-list-panel[open] .move-list-summary::after {
+    content: '−';
+  }
+
+  .move-list-body {
+    display: block;
   }
 
   .move-list-wrap {
@@ -485,6 +512,52 @@ window.WoodLeagueMoveAnnotations = {
     blunder: 'Blunder',
   }
 };
+
+window.WoodLeagueMovePanels = (function () {
+  var panelIds = ['pgn-panel', 'engine-line-san-panel'];
+  var isSyncing = false;
+
+  function panels() {
+    return panelIds
+      .map(function (id) { return document.getElementById(id); })
+      .filter(function (panel) { return !!panel; });
+  }
+
+  function syncTo(openState, sourcePanel) {
+    if (isSyncing) {
+      return;
+    }
+    isSyncing = true;
+    panels().forEach(function (panel) {
+      if (panel !== sourcePanel && panel.style.display !== 'none') {
+        panel.open = openState;
+      }
+    });
+    isSyncing = false;
+  }
+
+  function bindPanel(panelId) {
+    var panel = document.getElementById(panelId);
+    if (!panel || panel.dataset.syncBound === 'true') {
+      return;
+    }
+    panel.dataset.syncBound = 'true';
+    panel.addEventListener('toggle', function () {
+      syncTo(panel.open, panel);
+    });
+  }
+
+  panelIds.forEach(bindPanel);
+
+  return {
+    sync: function () {
+      var mainPanel = document.getElementById('pgn-panel');
+      var openState = mainPanel ? mainPanel.open : false;
+      panelIds.forEach(bindPanel);
+      syncTo(openState, null);
+    },
+  };
+})();
 
 (function () {
   var boardShell = document.getElementById('board-shell');

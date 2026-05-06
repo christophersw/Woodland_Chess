@@ -233,6 +233,9 @@
     if (continuationElements.panel) {
       continuationElements.panel.style.display = 'none';
     }
+    if (window.WoodLeagueMovePanels && typeof window.WoodLeagueMovePanels.sync === 'function') {
+      window.WoodLeagueMovePanels.sync();
+    }
 
     _applyEngineLineBorderStyles();
     _setEngineLineControlsEnabled(false);
@@ -490,6 +493,9 @@ window.setupEngineLineBoard = function (framesJson, arrowLabelsJson, sanListJson
 
     continuationTbody.innerHTML = '';
     continuationPanel.style.display = '';
+    if (window.WoodLeagueMovePanels && typeof window.WoodLeagueMovePanels.sync === 'function') {
+      window.WoodLeagueMovePanels.sync();
+    }
 
     if (!sanList.length || firstAbsolutePly === null) {
       var emptyRow = document.createElement('tr');

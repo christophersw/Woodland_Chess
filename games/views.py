@@ -32,6 +32,7 @@ from games.board_builder import _BOARD_COLORS, board_colors_for_move_classificat
 from games.models import Game
 from games.services import MoveRow, get_game_analysis
 from games.stat_cards import _DUB_CSS, build_lc0_card, build_sf_card
+from openings.models import OpeningBook
 
 _ACTIVE_STATUSES = [
     AnalysisJob.STATUS_PENDING,
@@ -66,15 +67,40 @@ def _opening_label(data) -> str:
         data (GameAnalysisData): Assembled game analysis data.
 
     Returns:
-        Opening label string, preferring lichess_opening name when available.
+        Opening label string, preferring lichess_opening name when available,
+        then looking up from OpeningBook by ECO code, skipping move notation.
     """
+    def is_move_notation(name: str) -> bool:
+        """Check if a string looks like chess move notation rather than an opening name."""
+        if not name:
+            return False
+        # Move notation contains only chess-related chars: files (a-h), ranks (1-8),
+        # pieces (KQRBN), capture (x), checks/mates (+#), spaces, etc.
+        only_move_chars = bool(re.match(r"^[a-hKQRBNx\d\-\+#!? ]+$", name))
+        # And must start with a move pattern (e.g., e4, Nf3, exd4)
+        starts_with_move = bool(re.match(r"^([a-h][x]?[a-h]?\d|[KQRBN])", name))
+        return only_move_chars and starts_with_move
+    
+    # Prefer lichess_opening if available
     if data.lichess_opening:
         if data.eco_code:
             return f"{data.eco_code} · {data.lichess_opening}"
         return data.lichess_opening
-    if data.eco_code and data.opening_name:
+    
+    # Use opening_name if it's not move notation
+    if data.eco_code and data.opening_name and not is_move_notation(data.opening_name):
         return f"{data.eco_code} · {data.opening_name}"
-    return data.eco_code or data.opening_name or ""
+    
+    # Fall back to looking up the opening by ECO code from OpeningBook
+    if data.eco_code:
+        try:
+            opening = OpeningBook.objects.filter(eco=data.eco_code).values_list("name", flat=True).first()
+            if opening:
+                return f"{data.eco_code} · {opening}"
+        except Exception:
+            pass
+    
+    return data.eco_code or ""
 
 
 def _queue_status(slug: str) -> tuple[bool, bool]:
