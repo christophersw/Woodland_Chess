@@ -121,12 +121,17 @@
       </div>
 
       {# PGN move table #}
-      <div style="border-top:2.5px solid #1A1A1A;border-bottom:1.5px solid #1A1A1A;">
-        <div style="font-family:'DM Mono',monospace;font-size:.54rem;letter-spacing:.12em;
-                    text-transform:uppercase;color:#5A5A5A;padding:4px 6px 2px;">Moves</div>
-        <div id="pgn-table-wrap" style="max-height:180px;overflow-y:auto;padding:4px 6px;
-                                        background:rgba(242,230,208,.4);">
-          <table id="pgn-table" style="width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:.72rem;">
+      <div class="move-list-panel">
+        <div class="move-list-title">Moves</div>
+        <div id="pgn-table-wrap" class="move-list-wrap">
+          <table id="pgn-table" class="move-list-table">
+            <thead>
+              <tr>
+                <th class="move-list-number-header"></th>
+                <th>White</th>
+                <th>Black</th>
+              </tr>
+            </thead>
             <tbody id="pgn-tbody"></tbody>
           </table>
         </div>
@@ -155,6 +160,22 @@
           <input type="range" id="engine-lines-slider" min="0" max="0" value="0" style="flex:1;max-width:220px;accent-color:#D4A843;" disabled>
           <span id="engine-lines-ply-label" style="font-family:'DM Mono',monospace;font-size:.68rem;color:#8B3A2A;min-width:72px;text-align:center;letter-spacing:.04em;">—</span>
           <button class="board-btn" id="engine-lines-btn-flip" title="Flip Board" style="margin-left:4px;" disabled>⇅</button>
+        </div>
+      </div>
+
+      <div id="engine-line-san-panel" class="move-list-panel" style="display:none;">
+        <div class="move-list-title">Continuation</div>
+        <div id="engine-line-table-wrap" class="move-list-wrap">
+          <table id="engine-line-table" class="move-list-table">
+            <thead>
+              <tr>
+                <th class="move-list-number-header"></th>
+                <th>White</th>
+                <th>Black</th>
+              </tr>
+            </thead>
+            <tbody id="engine-line-tbody"></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -274,6 +295,112 @@
     accent-color: #35586F;
   }
 
+  .move-list-panel {
+    border-top: 2.5px solid #1A1A1A;
+    border-bottom: 1.5px solid #1A1A1A;
+  }
+
+  .move-list-title {
+    font-family: 'DM Mono', monospace;
+    font-size: .54rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #5A5A5A;
+    padding: 4px 6px 2px;
+  }
+
+  .move-list-wrap {
+    max-height: 180px;
+    overflow-y: auto;
+    padding: 0 6px 4px;
+    background: rgba(242,230,208,.4);
+  }
+
+  .move-list-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'DM Mono', monospace;
+    font-size: .72rem;
+  }
+
+  .move-list-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #F2E6D0;
+    color: #8B3A2A;
+    font-size: .64rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 5px 5px 4px;
+    border-bottom: 1px solid #D4C4A0;
+  }
+
+  .move-list-number-header {
+    width: 28px;
+  }
+
+  .move-list-row {
+    border-bottom: 1px solid #EDE0C4;
+  }
+
+  .move-list-number {
+    color: #8B3A2A;
+    font-size: .65rem;
+    padding: 3px 5px;
+    white-space: nowrap;
+    width: 28px;
+    vertical-align: top;
+  }
+
+  .move-list-cell {
+    padding: 3px 5px;
+    cursor: pointer;
+    transition: background .1s ease;
+    vertical-align: top;
+  }
+
+  .move-list-cell:hover {
+    background: rgba(212,168,67,.18);
+  }
+
+  .move-list-cell-empty {
+    cursor: default;
+  }
+
+  .move-list-cell-empty:hover {
+    background: transparent;
+  }
+
+  .move-list-cell.is-active {
+    background: #1A3A2A;
+  }
+
+  .move-list-cell.is-active .move-san {
+    color: #F2E6D0;
+  }
+
+  .move-san {
+    color: #1A1A1A;
+  }
+
+  .move-annotation {
+    display: inline-block;
+    margin-left: 4px;
+    font-weight: 700;
+    letter-spacing: .02em;
+  }
+
+  .move-annotation-brilliant { color: #2C6B4A; }
+  .move-annotation-best { color: #4A6E8A; }
+  .move-annotation-great { color: #4A6554; }
+  .move-annotation-excellent { color: #4A6554; }
+  .move-annotation-good { color: #D4A843; }
+  .move-annotation-inaccuracy { color: #E07B7B; }
+  .move-annotation-mistake { color: #CE3A4A; }
+  .move-annotation-blunder { color: #B53541; }
+
   /* Responsive layout: stack boards vertically on mobile */
   @media (max-width: 1200px) {
     #boards-container {
@@ -307,6 +434,29 @@ WoodLeagueAnalysis.initFromUrl({
   defaultPly: {{ initial_ply }},
   defaultPerspective: "{{ initial_perspective }}",
 });
+
+window.WoodLeagueMoveAnnotations = {
+  symbols: {
+    brilliant: '!!',
+    best: '!',
+    great: '!?',
+    excellent: '!',
+    good: '!',
+    inaccuracy: '?!',
+    mistake: '?',
+    blunder: '??',
+  },
+  titles: {
+    brilliant: 'Brilliant Move',
+    best: 'Best Move',
+    great: 'Interesting Move',
+    excellent: 'Good Move',
+    good: 'Good Move',
+    inaccuracy: 'Dubious Move / Inaccuracy',
+    mistake: 'Mistake',
+    blunder: 'Blunder',
+  }
+};
 
 (function () {
   var boardShell = document.getElementById('board-shell');
@@ -351,10 +501,17 @@ function flipBoard() {
 (function () {
   var moves = JSON.parse(document.getElementById('pgn-moves-data').textContent || 'null') || [];
   var tbody = document.getElementById('pgn-tbody');
-  var clsColor = {
-    brilliant: '#2C6B4A', best: '#4A6E8A', great: '#4A6554',
-    inaccuracy: '#E07B7B', mistake: '#CE3A4A', blunder: '#B53541',
-  };
+  var annotationConfig = window.WoodLeagueMoveAnnotations || { symbols: {}, titles: {} };
+
+  function annotationHtml(classification) {
+    var normalized = (classification || '').toLowerCase();
+    var symbol = annotationConfig.symbols[normalized];
+    if (!symbol) {
+      return '';
+    }
+    var title = annotationConfig.titles[normalized] || classification;
+    return '<span class="move-annotation move-annotation-' + normalized + '" title="' + title + '">' + symbol + '</span>';
+  }
 
   // Build rows: one table row per move pair
   var rowsByPly = {};
@@ -366,43 +523,39 @@ function flipBoard() {
   white_moves.forEach(function (wm) {
     var bm = rowsByPly[wm.ply + 1];
     var tr = document.createElement('tr');
-    tr.style.borderBottom = '1px solid #EDE0C4';
+    tr.className = 'move-list-row';
 
     function makeCell(move) {
       var td = document.createElement('td');
-      td.style.padding = '3px 5px';
-      td.style.cursor = 'pointer';
-      td.style.transition = 'background .1s';
+      td.className = 'move-list-cell';
       td.dataset.ply = move.ply;
-      var cls = move.classification || '';
-      var clr = clsColor[cls] || '#1A1A1A';
-      td.innerHTML = '<span style="color:' + clr + ';font-weight:' + (cls ? '700' : '400') + '">' +
-        move.san + (cls ? ' <sup style="font-size:.5rem">' + cls.substring(0,3) + '</sup>' : '') +
-        '</span>';
+      td.innerHTML = '<span class="move-san">' + move.san + '</span>' + annotationHtml(move.classification);
       td.onclick = function () {
         WoodLeagueAnalysis.setPly(parseInt(this.dataset.ply));
       };
-      td.onmouseenter = function () { this.style.background = 'rgba(212,168,67,.18)'; };
-      td.onmouseleave = function () { this.style.background = ''; };
       return td;
     }
 
     var numTd = document.createElement('td');
-    numTd.style.cssText = 'color:#8B3A2A;font-size:.65rem;padding:3px 5px;white-space:nowrap;width:28px;';
+    numTd.className = 'move-list-number';
     numTd.textContent = wm.move_number + '.';
     tr.appendChild(numTd);
     tr.appendChild(makeCell(wm));
-    if (bm) tr.appendChild(makeCell(bm));
-    else tr.appendChild(document.createElement('td'));
+    if (bm) {
+      tr.appendChild(makeCell(bm));
+    } else {
+      var emptyTd = document.createElement('td');
+      emptyTd.className = 'move-list-cell move-list-cell-empty';
+      tr.appendChild(emptyTd);
+    }
     tbody.appendChild(tr);
   });
 
   // Highlight active ply on state changes
   WoodLeagueAnalysis.subscribe(function (state) {
-    tbody.querySelectorAll('td[data-ply]').forEach(function (td) {
+    tbody.querySelectorAll('.move-list-cell[data-ply]').forEach(function (td) {
       var active = parseInt(td.dataset.ply) === state.ply;
-      td.style.background = active ? '#1A3A2A' : '';
-      td.style.color = active ? '#F2E6D0' : '';
+      td.classList.toggle('is-active', active);
       if (active) {
         td.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }

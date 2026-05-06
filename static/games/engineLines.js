@@ -98,6 +98,18 @@
   }
 
   /**
+   * Return the continuation table elements shown under the Engine Lines board.
+   *
+   * @returns {{panel: Element|null, tbody: Element|null}}
+   */
+  function _getEngineLineContinuationElements() {
+    return {
+      panel: document.getElementById('engine-line-san-panel'),
+      tbody: document.getElementById('engine-line-tbody'),
+    };
+  }
+
+  /**
    * Apply the current loading or error state to the Engine Lines panel.
    *
    * @param {boolean} isLoading - Whether a continuation request is in flight.
@@ -173,6 +185,7 @@
    */
   function _clearEngineLineBoard() {
     var elements = _getEngineLineElements();
+    var continuationElements = _getEngineLineContinuationElements();
 
     _currentEngineLineData = null;
     _engineLinesPly = 0;
@@ -188,6 +201,12 @@
     }
     if (elements.header) {
       elements.header.textContent = 'Click engine arrow to explore';
+    }
+    if (continuationElements.tbody) {
+      continuationElements.tbody.innerHTML = '';
+    }
+    if (continuationElements.panel) {
+      continuationElements.panel.style.display = 'none';
     }
 
     _setEngineLineControlsEnabled(false);
@@ -229,6 +248,15 @@
      */
     getState: function () {
       return { ply: _engineLinesPly, totalPlies: _engineLinesTotal };
+    },
+
+    /**
+     * Get the currently loaded engine-line metadata.
+     *
+     * @returns {Object|null}
+     */
+    getCurrentLineData: function () {
+      return _currentEngineLineData;
     },
 
     /**
@@ -367,6 +395,7 @@
  */
 window.setupEngineLineBoard = function (framesJson, arrowLabelsJson, sanListJson, totalFrames) {
   var frames = JSON.parse(framesJson || '[]');
+  var sanList = JSON.parse(sanListJson || '[]');
   var totalFrames = frames.length;
 
   if (window.__woodLeagueEngineLineBoardTeardown) {
@@ -384,6 +413,8 @@ window.setupEngineLineBoard = function (framesJson, arrowLabelsJson, sanListJson
   var btnNext = document.getElementById('engine-lines-btn-next');
   var btnEnd = document.getElementById('engine-lines-btn-end');
   var btnFlip = document.getElementById('engine-lines-btn-flip');
+  var continuationPanel = document.getElementById('engine-line-san-panel');
+  var continuationTbody = document.getElementById('engine-line-tbody');
 
   if (!container || !boardRoot) return;
 
@@ -392,6 +423,120 @@ window.setupEngineLineBoard = function (framesJson, arrowLabelsJson, sanListJson
 
   // Inform EngineLines of total ply count
   window.WoodLeagueEngineLines.setTotalPlies(totalFrames - 1);
+
+  /**
+   * Return the absolute ply of the first continuation move.
+   *
+   * @returns {number|null}
+   */
+  function firstContinuationAbsolutePly() {
+    var lineData = window.WoodLeagueEngineLines.getCurrentLineData
+      ? window.WoodLeagueEngineLines.getCurrentLineData()
+      : null;
+    if (!lineData) {
+      return null;
+    }
+    return Number(lineData.baseMainLinePly || 0) + 1;
+  }
+
+  /**
+   * Render the continuation SAN table below the Engine Lines board.
+   */
+  function renderContinuationTable() {
+    var annotationConfig = window.WoodLeagueMoveAnnotations || { symbols: {}, titles: {} };
+    var firstAbsolutePly = firstContinuationAbsolutePly();
+
+    if (!continuationPanel || !continuationTbody) {
+      return;
+    }
+
+    continuationTbody.innerHTML = '';
+    continuationPanel.style.display = '';
+
+    if (!sanList.length || firstAbsolutePly === null) {
+      var emptyRow = document.createElement('tr');
+      emptyRow.className = 'move-list-row';
+
+      var emptyNumber = document.createElement('td');
+      emptyNumber.className = 'move-list-number';
+      emptyRow.appendChild(emptyNumber);
+
+      var emptyCell = document.createElement('td');
+      emptyCell.className = 'move-list-cell move-list-cell-empty';
+      emptyCell.colSpan = 2;
+      emptyCell.innerHTML = '<span class="move-san">No continuation moves stored.</span>';
+      emptyRow.appendChild(emptyCell);
+      continuationTbody.appendChild(emptyRow);
+      return;
+    }
+
+    var rowsByMoveNumber = {};
+    sanList.forEach(function (san, index) {
+      var absolutePly = firstAbsolutePly + index;
+      var moveNumber = Math.ceil(absolutePly / 2);
+      var color = absolutePly % 2 === 1 ? 'white' : 'black';
+      if (!rowsByMoveNumber[moveNumber]) {
+        rowsByMoveNumber[moveNumber] = {};
+      }
+      rowsByMoveNumber[moveNumber][color] = {
+        san: san,
+        engineLinePly: index + 1,
+      };
+    });
+
+    Object.keys(rowsByMoveNumber).sort(function (a, b) {
+      return Number(a) - Number(b);
+    }).forEach(function (moveNumberKey) {
+      var rowMoves = rowsByMoveNumber[moveNumberKey];
+      var row = document.createElement('tr');
+      row.className = 'move-list-row';
+
+      var numberCell = document.createElement('td');
+      numberCell.className = 'move-list-number';
+      numberCell.textContent = moveNumberKey + '.';
+      row.appendChild(numberCell);
+
+      ['white', 'black'].forEach(function (color) {
+        var moveData = rowMoves[color];
+        var moveCell = document.createElement('td');
+        if (!moveData) {
+          moveCell.className = 'move-list-cell move-list-cell-empty';
+          row.appendChild(moveCell);
+          return;
+        }
+
+        moveCell.className = 'move-list-cell';
+        moveCell.dataset.engineLinePly = String(moveData.engineLinePly);
+        moveCell.innerHTML = '<span class="move-san">' + moveData.san + '</span>';
+        moveCell.onclick = function () {
+          window.WoodLeagueEngineLines.setPly(moveData.engineLinePly);
+        };
+        moveCell.title = annotationConfig.titles.best || 'Best Move';
+        row.appendChild(moveCell);
+      });
+
+      continuationTbody.appendChild(row);
+    });
+  }
+
+  /**
+   * Highlight the currently selected continuation move in the SAN table.
+   *
+   * @param {number} ply - Current Engine Lines ply.
+   */
+  function renderContinuationSelection(ply) {
+    if (!continuationTbody) {
+      return;
+    }
+
+    continuationTbody.querySelectorAll('.move-list-cell[data-engine-line-ply]').forEach(function (cell) {
+      var isActive = (parseInt(cell.dataset.engineLinePly, 10) || 0) === ply;
+      cell.classList.toggle('is-active', isActive);
+      if (isActive) {
+        cell.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    });
+  }
 
   function renderPly(ply) {
     ply = Math.max(0, Math.min(totalFrames - 1, ply));
@@ -406,12 +551,15 @@ window.setupEngineLineBoard = function (framesJson, arrowLabelsJson, sanListJson
       var dots = ply % 2 === 0 ? '...' : '.';
       plyLabel.textContent = '+' + ply + ' (' + moveNum + dots + ')';
     }
+    renderContinuationSelection(ply);
   }
 
   // Subscribe to EngineLines state changes
   var unsubscribe = window.WoodLeagueEngineLines.subscribe(function (state) {
     renderPly(state.ply);
   });
+
+  renderContinuationTable();
 
   // Render initial state
   renderPly(0);
