@@ -452,6 +452,12 @@
       grid-template-columns: 1fr !important;
     }
   }
+
+  /* Plotly hover text styling - solid background for readability */
+  .hovertext {
+    background-color: white !important;
+    opacity: 1 !important;
+  }
 </style>
 
 {# JSON data embedded in page for chart and PGN rendering #}
@@ -666,7 +672,7 @@ function flipBoard() {
 </script>
 
 {% if has_sf %}
-{# Stockfish evaluation bar chart #}
+{# Stockfish evaluation bar chart with perspective-based shading #}
 <script>
 (function () {
   var evalData = JSON.parse(document.getElementById('sf-eval-data').textContent || 'null');
@@ -674,7 +680,7 @@ function flipBoard() {
   var moveQualityColors = (window.WoodLeagueMoveAnnotations && window.WoodLeagueMoveAnnotations.colors) || {};
 
   var MATE_THRESHOLD = 9000, DISPLAY_CAP = 1200;
-  var points = evalData.map(function (d) {
+  var rawPoints = evalData.map(function (d) {
     var cp = Number(d.cp_eval || 0);
     var isMate = Math.abs(cp) >= MATE_THRESHOLD;
     var display = isMate ? (cp >= 0 ? DISPLAY_CAP : -DISPLAY_CAP)
@@ -682,10 +688,97 @@ function flipBoard() {
     return { ply: Number(d.ply), cp: cp, display: display, san: d.san || '', cls: d.classification || '' };
   });
 
+  var sfDiv = document.getElementById('sf-eval-chart');
+  var sfHeight = Math.max(260, 180 + rawPoints.length * 5);
+
   function buildColors() {
-    return points.map(function (p) {
+    return rawPoints.map(function (p) {
       return moveQualityColors[p.cls] || '#C9B998';
     });
+  }
+
+  // Perspective-flipping: if perspective is black, negate all cp values
+  // Also invert Y axis so white advantage (positive) points DOWN (toward white at bottom of board)
+  function getPointsForPerspective(perspective) {
+    var points = rawPoints;
+    if (perspective === 'black') {
+      points = rawPoints.map(function (p) {
+        return {
+          ply: p.ply, cp: -p.cp,
+          display: -p.display,
+          san: p.san, cls: p.cls
+        };
+      });
+    }
+    // Invert display so positive (advantage) points DOWN
+    return points.map(function (p) {
+      return {
+        ply: p.ply, cp: p.cp,
+        display: -p.display,
+        san: p.san, cls: p.cls
+      };
+    });
+  }
+
+  // Build background shading rectangles for white/black advantage regions
+  function buildShapes(perspective, maxX) {
+    var shapes = [];
+    
+    // Find the max ply to set x-axis bounds
+    if (maxX === undefined || maxX <= 0) {
+      maxX = rawPoints.length > 0 ? rawPoints[rawPoints.length - 1].ply : 1;
+    }
+    
+    // When perspective is white: white (light) at bottom, black (dark) at top
+    // When perspective is black: black (dark) at bottom, white (light) at top
+    if (perspective === 'white') {
+      // Negative region (white advantage at bottom) - white
+      shapes.push({
+        type: 'rect',
+        xref: 'paper', yref: 'y',
+        x0: 0, x1: 1,
+        y0: -DISPLAY_CAP, y1: 0,
+        fillcolor: 'rgba(255, 255, 255, 0.98)',
+        line: { width: 0 },
+        layer: 'below'
+      });
+      
+      // Positive region (black advantage at top) - very dark grey
+      shapes.push({
+        type: 'rect',
+        xref: 'paper', yref: 'y',
+        x0: 0, x1: 1,
+        y0: 0, y1: DISPLAY_CAP,
+        fillcolor: 'rgba(26, 26, 26, 0.85)',
+        line: { width: 0 },
+        layer: 'below'
+      });
+    } else {
+      // Black perspective: flip the shading
+      // Negative region (black advantage at bottom) - very dark grey
+      shapes.push({
+        type: 'rect',
+        xref: 'paper', yref: 'y',
+        x0: 0, x1: 1,
+        y0: -DISPLAY_CAP, y1: 0,
+        fillcolor: 'rgba(26, 26, 26, 0.85)',
+        line: { width: 0 },
+        layer: 'below'
+      });
+      
+      // Positive region (white advantage at top) - white
+      shapes.push({
+        type: 'rect',
+        xref: 'paper', yref: 'y',
+        x0: 0, x1: 1,
+        y0: 0, y1: DISPLAY_CAP,
+        fillcolor: 'rgba(255, 255, 255, 0.98)',
+        line: { width: 0 },
+        layer: 'below'
+      });
+    }
+    
+    return shapes;
   }
 
   var sfHighlight = {
@@ -694,40 +787,62 @@ function flipBoard() {
     line: { color: '#C17F24', width: 2, dash: 'dot' }
   };
 
-  var sfDiv = document.getElementById('sf-eval-chart');
-  var sfHeight = Math.max(260, 180 + points.length * 5);
-
   function buildTrace(perspective) {
+    var pointsForPerspective = getPointsForPerspective(perspective);
     return {
-      x: points.map(function (p) { return p.ply; }),
-      y: points.map(function (p) { return p.display; }),
+      x: pointsForPerspective.map(function (p) { return p.ply; }),
+      y: pointsForPerspective.map(function (p) { return p.display; }),
       type: 'bar',
-      marker: { color: buildColors(perspective) },
-      customdata: points.map(function (p) {
-        return [p.san, p.cp >= 0 ? '+' : '', (p.cp / 100).toFixed(2)];
+      marker: { color: buildColors() },
+      customdata: pointsForPerspective.map(function (p) {
+        return [p.san, p.cp >= 0 ? '+' : '', Math.abs(p.cp / 100).toFixed(2)];
       }),
       hovertemplate: 'Ply %{x}: %{customdata[0]} %{customdata[1]}%{customdata[2]} pawns<extra></extra>',
       name: 'Eval', showlegend: false,
     };
   }
 
-  var layout = {
-    xaxis: { title: { text: 'Ply', font: { size: 11, color: '#1C1C1C', family: 'DM Mono,monospace' } }, zeroline: false, gridcolor: '#EDE0C4', tickfont: { size: 11, color: '#1C1C1C', family: 'DM Mono,monospace' } },
-    yaxis: { title: { text: 'Centipawns', font: { size: 11, color: '#1C1C1C', family: 'DM Mono,monospace' } }, zeroline: true, zerolinecolor: '#1A1A1A', gridcolor: '#EDE0C4', tickfont: { size: 11, color: '#1C1C1C', family: 'DM Mono,monospace' } },
-    margin: { l: 55, r: 20, t: 50, b: 50 }, height: sfHeight,
-    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(237,224,196,0.2)',
-    font: { color: '#1C1C1C', family: 'EB Garamond,serif' }, hovermode: 'x unified',
-    annotations: [{ text: 'Stockfish Evaluation', xref: 'paper', yref: 'paper', x: 0.5, y: 1.10, xanchor: 'center', showarrow: false, font: { size: 14, color: '#1A1A1A', family: 'Georgia,serif' } }],
-  };
+  function buildLayout(perspective) {
+    var title = perspective === 'white' ? 'White Advantage →' : '← Black Advantage';
+    return {
+      xaxis: { title: { text: 'Ply', font: { size: 11, color: '#1C1C1C', family: 'DM Mono,monospace' } }, zeroline: false, showgrid: false, tickfont: { size: 11, color: '#1C1C1C', family: 'DM Mono,monospace' } },
+      yaxis: { title: { text: title, font: { size: 11, color: '#1C1C1C', family: 'DM Mono,monospace' } }, zeroline: true, zerolinecolor: '#1A1A1A', showgrid: true, gridcolor: '#EDE0C4', tickfont: { size: 11, color: '#1C1C1C', family: 'DM Mono,monospace' } },
+      margin: { l: 95, r: 20, t: 50, b: 50 }, height: sfHeight,
+      paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(237,224,196,0.2)',
+      font: { color: '#1C1C1C', family: 'EB Garamond,serif' }, hovermode: 'x unified',
+      hoverlabel: { bgcolor: 'white', bordercolor: '#1A1A1A', font: { color: '#1A1A1A', family: 'DM Mono,monospace', size: 12 } },
+      shapes: buildShapes(perspective, rawPoints.length > 0 ? rawPoints[rawPoints.length - 1].ply : 1),
+      annotations: [{ text: 'Stockfish Evaluation', xref: 'paper', yref: 'paper', x: 0.5, y: 1.10, xanchor: 'center', showarrow: false, font: { size: 14, color: '#1A1A1A', family: 'Georgia,serif' } }],
+    };
+  }
 
-  Plotly.newPlot(sfDiv, [buildTrace(), sfHighlight], layout, { displaylogo: false, responsive: true })
+  // Initialize with current perspective
+  var currentPerspective = WoodLeagueAnalysis.getState().perspective;
+  Plotly.newPlot(sfDiv, [buildTrace(currentPerspective), sfHighlight], buildLayout(currentPerspective), { displaylogo: false, responsive: true })
     .then(function () {
       sfDiv.on('plotly_click', function (d) {
         if (d.points && d.points.length) WoodLeagueAnalysis.setPly(d.points[0].x);
       });
 
       WoodLeagueAnalysis.subscribe(function (state) {
+        // Update highlight position
         Plotly.restyle(sfDiv, { x: [[state.ply, state.ply]], y: [[-DISPLAY_CAP, DISPLAY_CAP]] }, [1]);
+        
+        // If perspective changed, redraw entire chart with flipped data
+        if (state.perspective !== currentPerspective) {
+          currentPerspective = state.perspective;
+          var pointsForPerspective = getPointsForPerspective(currentPerspective);
+          Plotly.restyle(sfDiv, {
+            x: [pointsForPerspective.map(function (p) { return p.ply; })],
+            y: [pointsForPerspective.map(function (p) { return p.display; })],
+            customdata: [pointsForPerspective.map(function (p) {
+              return [p.san, p.cp >= 0 ? '+' : '', Math.abs(p.cp / 100).toFixed(2)];
+            })]
+          }, [0]);
+          
+          // Update layout (shapes and axis title)
+          Plotly.relayout(sfDiv, buildLayout(currentPerspective));
+        }
       });
     });
 })();

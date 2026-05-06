@@ -133,7 +133,7 @@ def _metric_bar(pct: float, val_str: str, fill: str | None = None) -> str:
     
     return (
         f'<div class="dub-row">'
-        f'<div class="dub-bar"><div class="dub-bar-fill" style="width:{w:.1f}%;background:{color}">{inner_lbl}</div></div>'
+        f'<div class="dub-bar" title="Percentage of moves matching engine recommendation or within margin of best move"><div class="dub-bar-fill" style="width:{w:.1f}%;background:{color}">{inner_lbl}</div></div>'
         f"</div>"
     )
 
@@ -163,12 +163,25 @@ def _quality_metric_bar(brilliant: int, best: int, great: int, inaccuracy: int, 
             return ""
         pct = n / total * 100
         txt = f"{short_lbl} {n}" if pct >= 6 else ""
-        return f'<div class="dub-seg {cls}" style="flex:{pct:.2f}">{escape(txt)}</div>'
+        tooltip = ""
+        if "!!" in short_lbl:
+            tooltip = f"Brilliant moves: excellent moves that significantly improved position ({n})"
+        elif "!" in short_lbl and "?" not in short_lbl:
+            tooltip = f"Best moves: engine-recommended best moves ({n})"
+        elif "!?" in short_lbl:
+            tooltip = f"Great moves: very good moves slightly worse than best ({n})"
+        elif "?!" in short_lbl:
+            tooltip = f"Inaccuracies: suboptimal moves with small drawback ({n})"
+        elif short_lbl == "?":
+            tooltip = f"Mistakes: poor moves with significant drawback ({n})"
+        elif short_lbl == "??":
+            tooltip = f"Blunders: terrible moves with major material or positional loss ({n})"
+        return f'<div class="dub-seg {cls}" style="flex:{pct:.2f}" title="{tooltip}">{escape(txt)}</div>'
 
     neu_seg = ""
     if neutral > 0 and total > 0:
         pct = neutral / total * 100
-        neu_seg = f'<div class="dub-seg dub-neut" style="flex:{pct:.2f}"></div>'
+        neu_seg = f'<div class="dub-seg dub-neut" style="flex:{pct:.2f}" title="Unclassified moves: not classified by engine or below threshold ({neutral})"></div>'
 
     segs = (
         _seg("dub-bril", brilliant, "!!")
@@ -181,7 +194,7 @@ def _quality_metric_bar(brilliant: int, best: int, great: int, inaccuracy: int, 
     )
     return (
         f'<div class="dub-row">'
-        f'<div class="dub-stack">{segs}</div>'
+        f'<div class="dub-stack" title="Distribution of move quality classifications across all moves">{segs}</div>'
         f"</div>"
     )
 
@@ -238,7 +251,14 @@ def _wdl_bar(win: float, draw: float, loss: float) -> str:
     def _seg(cls: str, pct: float, lbl: str) -> str:
         """Build a single WDL segment."""
         txt = lbl if pct >= 9 else ""
-        return f'<div class="dub-seg {cls}" style="flex:{pct:.1f}">{escape(txt)}</div>'
+        tooltip = ""
+        if "W" in lbl:
+            tooltip = f"Probability of winning from this position"
+        elif "D" in lbl:
+            tooltip = f"Probability of drawing from this position"
+        elif "L" in lbl:
+            tooltip = f"Probability of losing from this position"
+        return f'<div class="dub-seg {cls}" style="flex:{pct:.1f}" title="{tooltip}">{escape(txt)}</div>'
 
     segs = (
         _seg("dub-win", win, f"W {win:.0f}%")
@@ -247,7 +267,7 @@ def _wdl_bar(win: float, draw: float, loss: float) -> str:
     )
     return (
         f'<div class="dub-row">'
-        f'<div class="dub-stack">{segs}</div>'
+        f'<div class="dub-stack" title="Probability distribution: Win, Draw, Loss">{segs}</div>'
         f"</div>"
     )
 
@@ -389,7 +409,7 @@ def build_sf_card(data: GameAnalysisData, queued: bool = False) -> str:
             
             # Accuracy bar with label
             if has_acc:
-                content += f'<div class="dub-metric-label">Accuracy</div>'
+                content += f'<div class="dub-metric-label" title="Percentage of moves that match the engine\'s top choice or were within 50 centipawns of the best move">Accuracy</div>'
                 content += _metric_bar(acc_val, f"{acc_val:.1f}%")
             
             # Move quality bar with label
@@ -405,12 +425,12 @@ def build_sf_card(data: GameAnalysisData, queued: bool = False) -> str:
                 blunder = blun if blun is not None else _cnt(side_moves, "blunder")
                 total = len(side_moves)
                 if total:
-                    content += f'<div class="dub-metric-label">Move Quality</div>'
+                    content += f'<div class="dub-metric-label" title="Classification of each move: !! (brilliant), ! (best), !? (great), ?! (inaccuracy), ? (mistake), ?? (blunder)">Move Quality</div>'
                     content += _quality_metric_bar(bril, best, great, inaccuracy, mistake, blunder, total)
             
             # ACPL chip if available (at bottom)
             if has_acpl and acpl_val is not None:
-                content += f'<div class="dub-chip" style="margin-top:8px;">ACPL: {acpl_val:.1f}</div>'
+                content += f'<div class="dub-chip" style="margin-top:8px;" title="Average Centipawn Loss: the average difference between your moves and the engine\'s best move, measured in centipawns (1/100th of a pawn). Lower is better.">ACPL: {acpl_val:.1f}</div>'
             
             # Add spacing between players
             if name == data.white:
@@ -476,22 +496,33 @@ def build_lc0_card(data: GameAnalysisData, queued: bool = False) -> str:
             # Player name label
             content += f'<div class="dub-player-name">{escape(name)}{" 🏆" if is_winner else ""}</div>'
             
-            # Win/Draw/Loss bar with label
-            content += f'<div class="dub-metric-label">Win / Draw / Loss</div>'
+            # Win/Draw/Loss bar with label and tooltip
+            content += f'<div class="dub-metric-label" title="Probability of winning, drawing, or losing from the average position during the game">Win / Draw / Loss</div>'
             content += _wdl_bar(win_prob, draw_prob, loss_prob)
             
-            # Error counts if available
-            has_errors = inac is not None or mist is not None or blun is not None
-            if has_errors:
-                content += f'<div class="dub-metric-label">Move Errors</div>'
-                error_spans = ""
-                if inac is not None:
-                    error_spans += f'<span style="font-size:.70rem;font-weight:700;color:#E07B7B">{inac}</span><span style="font-size:.54rem;letter-spacing:.05em;color:#5A5A5A;margin-left:2px;margin-right:8px">inaccuracy</span>'
-                if mist is not None:
-                    error_spans += f'<span style="font-size:.70rem;font-weight:700;color:#CE3A4A">{mist}</span><span style="font-size:.54rem;letter-spacing:.05em;color:#5A5A5A;margin-left:2px;margin-right:8px">mistake</span>'
-                if blun is not None:
-                    error_spans += f'<span style="font-size:.70rem;font-weight:700;color:#B53541">{blun}</span><span style="font-size:.54rem;letter-spacing:.05em;color:#5A5A5A;margin-left:2px">blunder</span>'
-                content += f'<div style="display:flex;align-items:baseline;flex-wrap:wrap;margin-bottom:8px">{error_spans}</div>'
+            # Move quality bar if we have LC0 moves with classifications
+            if data.lc0_moves:
+                side_moves = [m for m in data.lc0_moves if (name == data.white and m.ply % 2 == 1) or (name == data.black and m.ply % 2 == 0)]
+                if side_moves and any(m.classification for m in side_moves):
+                    def _cnt(moves_list, cls):
+                        return sum(1 for m in moves_list if m.classification == cls)
+                    
+                    bril = _cnt(side_moves, "brilliant")
+                    best = _cnt(side_moves, "best")
+                    great = _cnt(side_moves, "great")
+                    inaccuracy_lc0 = _cnt(side_moves, "inaccuracy")
+                    mistake_lc0 = _cnt(side_moves, "mistake")
+                    blunder_lc0 = _cnt(side_moves, "blunder")
+                    total = len(side_moves)
+                    if total:
+                        content += f'<div class="dub-metric-label" title="Classification of each move: !! (brilliant), ! (best), !? (great), ?! (inaccuracy), ? (mistake), ?? (blunder)">Move Quality</div>'
+                        content += _quality_metric_bar(bril, best, great, inaccuracy_lc0, mistake_lc0, blunder_lc0, total)
+                    
+                    # Average Move Win Delta chip
+                    valid_deltas = [m.move_win_delta for m in side_moves if m.move_win_delta is not None]
+                    if valid_deltas:
+                        avg_delta = sum(valid_deltas) / len(valid_deltas)
+                        content += f'<div class="dub-chip" style="margin-top:8px;" title="Average change in win probability per move. Lower is better (moves that maintained/improved winning chances).">Avg Δ: {avg_delta:.1f}</div>'
             
             # Add spacing between players
             if name == data.white:
