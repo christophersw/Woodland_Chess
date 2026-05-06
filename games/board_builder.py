@@ -3,10 +3,15 @@ Title: board_builder.py — Chess board SVG frame builder
 Description:
     Generates SVG board frames for the game analysis page. Produces one plain board
     SVG per ply and a separate, explicit arrow metadata payload for client-side
-    overlay rendering. This keeps arrow drawing and click handling out of the
-    serialized chess.svg markup and makes the browser contract easier to maintain.
+    overlay rendering. It also applies move-quality colors to the played-move
+    squares so the board matches the analysis palette used elsewhere in the UI.
+    This keeps arrow drawing and click handling out of the serialized chess.svg
+    markup and makes the browser contract easier to maintain.
 
 Changelog:
+    2026-05-05 (#16): Exposed reusable move-quality board colors for main and
+                      engine-line board highlights
+    2026-05-05 (#16): Applied move-quality colors to main-board move squares
     2026-05-05 (#16): Replaced brittle SVG arrow mutation with explicit overlay
                       metadata for stable client-side rendering and interaction
     2026-05-04 (#16): Rewrote to return frame data dict instead of HTML blob;
@@ -29,6 +34,17 @@ _BOARD_COLORS = {
     "square dark": "#4A8C62",
     "margin": "#1A1A1A",
     "coord": "#D4A843",
+}
+
+_MOVE_CLASSIFICATION_COLORS = {
+    "brilliant": "#2C6B4A",
+    "best": "#4A6E8A",
+    "great": "#4A6554",
+    "excellent": "#4A6554",
+    "good": "#EFE4CC",
+    "inaccuracy": "#E07B7B",
+    "mistake": "#CE3A4A",
+    "blunder": "#B53541",
 }
 
 _ENGINE_BASE_COLORS = {
@@ -216,6 +232,33 @@ def _build_arrow_entries_for_engine(
     return overlay_entries
 
 
+def board_colors_for_move_classification(classification: str | None) -> dict[str, str]:
+    """
+    Return board colors with last-move squares tinted for a move classification.
+
+    Params:
+        classification (str | None): Human-readable move quality such as
+            "best", "great", or "blunder".
+
+    Returns:
+        Board color mapping for chess.svg.board(). When the classification is
+        unknown or empty, the default board palette is returned unchanged.
+    """
+    if not classification:
+        return _BOARD_COLORS
+
+    normalized_classification = classification.strip().lower()
+    highlight_color = _MOVE_CLASSIFICATION_COLORS.get(normalized_classification)
+    if not highlight_color:
+        return _BOARD_COLORS
+
+    return {
+        **_BOARD_COLORS,
+        "square light lastmove": highlight_color,
+        "square dark lastmove": highlight_color,
+    }
+
+
 def build_board_frames(
     data: GameAnalysisData,
     size: int = 480,
@@ -299,6 +342,7 @@ def build_board_frames(
     board = game.board()
     for ply_i, move in enumerate(moves_played, start=1):
         abs_ply = ply_i + start_ply_offset
+        move_row = sf_by_ply.get(abs_ply) or sf_by_ply.get(ply_i)
         san_list.append(board.san(move))
         is_white_move = board.turn == chess.WHITE
         board.push(move)
@@ -327,7 +371,9 @@ def build_board_frames(
             size=size,
             lastmove=move,
             flipped=flipped,
-            colors=_BOARD_COLORS,
+            colors=board_colors_for_move_classification(
+                move_row.classification if move_row else None
+            ),
         )
         frames.append(svg)
 

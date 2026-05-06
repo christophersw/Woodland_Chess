@@ -75,6 +75,28 @@
     <span class="pg-title">Move Analysis</span>
   </div>
 
+  {% if has_sf or has_lc0 %}
+  <fieldset class="board-arrow-filters">
+    <legend>Arrow filters</legend>
+    {% if has_sf %}
+    <label class="board-arrow-filter board-arrow-filter-sf">
+      <input type="checkbox" id="board-sf-toggle" checked onchange="boardApplyArrowVisibility()">
+      <span>Show Stockfish</span>
+    </label>
+    {% endif %}
+    {% if has_lc0 %}
+    <label class="board-arrow-filter board-arrow-filter-lc0">
+      <input type="checkbox" id="board-lc0-toggle" checked onchange="boardApplyArrowVisibility()">
+      <span>Show Lc0</span>
+    </label>
+    {% endif %}
+    <label class="board-arrow-filter">
+      <input type="checkbox" id="board-best-line-toggle" onchange="boardApplyArrowVisibility()">
+      <span>Best line only</span>
+    </label>
+  </fieldset>
+  {% endif %}
+
   {# Boards row (main board + engine lines board) #}
   <div id="boards-container" style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px;align-items:start;">
 
@@ -124,17 +146,16 @@
           {# Engine Lines board will be loaded here via HTMX #}
           <div id="engine-lines-loading" style="display:none;">Loading…</div>
         </div>
-        <div id="engine-lines-controls" style="display:flex;align-items:center;gap:5px;padding:8px 0 6px;justify-content:center;border-top:1px solid #D4C4A0;flex-wrap:wrap;">
-          <button class="board-btn" id="engine-lines-btn-start" title="Start">&#x23EE;</button>
-          <button class="board-btn" id="engine-lines-btn-prev" title="Previous">&#x25C0;</button>
-          <button class="board-btn" id="engine-lines-btn-play" title="Play/Pause">&#x25B6;</button>
-          <button class="board-btn" id="engine-lines-btn-next" title="Next">&#x25B6;&#xFE0E;</button>
-          <button class="board-btn" id="engine-lines-btn-end" title="End">&#x23ED;</button>
+        <div id="engine-lines-controls" style="display:none;align-items:center;gap:5px;padding:8px 0 6px;justify-content:center;border-top:1px solid #D4C4A0;flex-wrap:wrap;">
+          <button class="board-btn" id="engine-lines-btn-start" title="Start" disabled>&#x23EE;</button>
+          <button class="board-btn" id="engine-lines-btn-prev" title="Previous" disabled>&#x25C0;</button>
+          <button class="board-btn" id="engine-lines-btn-play" title="Play/Pause" disabled>&#x25B6;</button>
+          <button class="board-btn" id="engine-lines-btn-next" title="Next" disabled>&#x25B6;&#xFE0E;</button>
+          <button class="board-btn" id="engine-lines-btn-end" title="End" disabled>&#x23ED;</button>
           <input type="range" id="engine-lines-slider" min="0" max="0" value="0" style="flex:1;max-width:220px;accent-color:#D4A843;" disabled>
           <span id="engine-lines-ply-label" style="font-family:'DM Mono',monospace;font-size:.68rem;color:#8B3A2A;min-width:72px;text-align:center;letter-spacing:.04em;">—</span>
-          <button class="board-btn" id="engine-lines-btn-flip" title="Flip Board" style="margin-left:4px;">⇅</button>
+          <button class="board-btn" id="engine-lines-btn-flip" title="Flip Board" style="margin-left:4px;" disabled>⇅</button>
         </div>
-        <div class="engine-line-toggles-spacer" aria-hidden="true"></div>
       </div>
     </div>
 
@@ -196,6 +217,61 @@
   #board-loading-indicator.htmx-request {
     opacity: 1 !important;
     visibility: visible !important;
+  }
+
+  .board-arrow-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 0 0 18px;
+    align-items: center;
+    border: 1px solid #D4C4A0;
+    padding: 10px 12px 12px;
+    background: rgba(242,230,208,.24);
+  }
+
+  .board-arrow-filters legend {
+    font-family: 'DM Mono', monospace;
+    font-size: .68rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #8B3A2A;
+    padding: 0 6px;
+  }
+
+  .board-arrow-filter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    color: #1A1A1A;
+    cursor: pointer;
+  }
+
+  .board-arrow-filter input {
+    width: 16px;
+    height: 16px;
+    accent-color: #1A1A1A;
+    margin: 0;
+  }
+
+  .board-arrow-filter-sf {
+    color: #A8781B;
+  }
+
+  .board-arrow-filter-sf input {
+    accent-color: #A8781B;
+  }
+
+  .board-arrow-filter-lc0 {
+    color: #35586F;
+  }
+
+  .board-arrow-filter-lc0 input {
+    accent-color: #35586F;
   }
 
   /* Responsive layout: stack boards vertically on mobile */

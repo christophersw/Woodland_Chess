@@ -6,6 +6,10 @@ Description:
     flip without full reload), and the queue-analysis POST endpoint.
 
 Changelog:
+    2026-05-05 (#16): Highlighted every Engine Lines continuation move with the
+                      shared best-move board color
+    2026-05-05 (#16): Highlighted the first Engine Lines frame using the
+                      move-quality board palette for the clicked move
     2026-05-05 (#16): Reworked engine-line continuations to use stored PV SAN data
                       and removed brittle continuation reconstruction logic
     2026-05-04 (#16): Full rewrite for ply-sync architecture; added board_partial
@@ -24,7 +28,7 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_POST
 
 from analysis.models import AnalysisJob
-from games.board_builder import build_board_frames, _BOARD_COLORS
+from games.board_builder import _BOARD_COLORS, board_colors_for_move_classification, build_board_frames
 from games.models import Game
 from games.services import MoveRow, get_game_analysis
 from games.stat_cards import _DUB_CSS, build_lc0_card, build_sf_card
@@ -474,8 +478,14 @@ def engine_line_partial(request: HttpRequest, slug: str) -> HttpResponse:
     san_list = []
     arrow_labels_by_ply = {}
 
-    # Frame 0: position after the clicked move.
-    frames.append(chess.svg.board(board, size=480, flipped=flipped, colors=_BOARD_COLORS))
+    # Frame 0: position after the clicked move, with that move highlighted clearly.
+    frames.append(chess.svg.board(
+        board,
+        size=480,
+        lastmove=clicked_move,
+        flipped=flipped,
+        colors=board_colors_for_move_classification("best"),
+    ))
 
     continuation_board = board.copy()
     move_row = _engine_row_for_request(data, engine, analysis_ply)
@@ -495,7 +505,7 @@ def engine_line_partial(request: HttpRequest, slug: str) -> HttpResponse:
                 size=480,
                 lastmove=continuation_move,
                 flipped=flipped,
-                colors=_BOARD_COLORS,
+                colors=board_colors_for_move_classification("best"),
             ))
     else:
         for move in _fallback_game_continuation_sans(moves_list, ply)[:50]:
@@ -511,7 +521,7 @@ def engine_line_partial(request: HttpRequest, slug: str) -> HttpResponse:
                 size=480,
                 lastmove=move,
                 flipped=flipped,
-                colors=_BOARD_COLORS,
+                colors=board_colors_for_move_classification("best"),
             ))
 
     return render(request, "games/_engine_line_partial.html", {

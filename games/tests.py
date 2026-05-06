@@ -365,6 +365,13 @@ class BuildBoardFramesTest(TestCase):
         self.assertEqual(geometry["board_margin"], 15.0)
         self.assertEqual(geometry["square_size"], 45.0)
 
+    def test_move_classification_colors_lastmove_squares(self):
+        """build_board_frames tints played-move squares with the move classification color."""
+        data = _minimal_data(white_accuracy=85.0)
+        result = build_board_frames(data, size=480, orientation="white")
+
+        self.assertIn("#4A6E8A", result["frames"][1])
+
     def test_returns_only_start_frame_for_pgn_with_no_moves(self):
         """build_board_frames returns only the start-position frame when PGN has no moves."""
         no_moves_pgn = "[Event \"?\"]\n[White \"W\"]\n[Black \"B\"]\n[Result \"*\"]\n\n*"
@@ -419,6 +426,7 @@ class EngineLinePartialTest(TestCase):
 
         self.assertEqual(san_list, ["e5", "Nf3", "Nc6"])
         self.assertEqual(len(frames), 4)
+        self.assertTrue(all("#4A6E8A" in frame for frame in frames))
         self.assertEqual(payload["context_label"], "Best SF (ply 1) +30")
 
 

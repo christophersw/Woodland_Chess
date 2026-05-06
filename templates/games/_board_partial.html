@@ -44,25 +44,6 @@
     <button class="board-btn" onclick="flipBoard()" title="Flip Board" style="margin-left:4px;">⇅</button>
   </div>
 
-  {# Arrow visibility toggles #}
-  {% if has_sf or has_lc0 %}
-  {% if not no_arrows %}
-  <div class="arrow-toggles">
-    {% if has_sf %}
-    <label class="arrow-toggle-label" style="color:#D4A843;">
-      <input type="checkbox" id="board-sf-toggle" checked onchange="boardApplyArrowVisibility()">
-      <span class="arrow-swatch" style="background:linear-gradient(90deg,#D4A843EE,#D4A84308)"></span>SF
-    </label>
-    {% endif %}
-    {% if has_lc0 %}
-    <label class="arrow-toggle-label" style="color:#4A6E8A;">
-      <input type="checkbox" id="board-lc0-toggle" checked onchange="boardApplyArrowVisibility()">
-      <span class="arrow-swatch" style="background:linear-gradient(90deg,#4A6E8AEE,#4A6E8A08)"></span>Lc0
-    </label>
-    {% endif %}
-  </div>
-  {% endif %}
-  {% endif %}
 </div>
 
 <style>
@@ -82,11 +63,7 @@
 .board-controls{display:flex;align-items:center;gap:5px;padding:8px 0 6px;justify-content:center;border-top:1px solid #D4C4A0;flex-wrap:wrap;}
 .board-btn{background:transparent;color:#1A1A1A;border:1.5px solid #1A1A1A;border-radius:0;padding:4px 10px;cursor:pointer;font-family:'DM Mono',monospace;font-size:.85rem;min-width:32px;transition:background .15s,color .15s;}
 .board-btn:hover{background:#1A1A1A;color:#F2E6D0;}
-.arrow-toggles{display:flex;gap:14px;align-items:center;padding:5px 2px 2px;font-family:'DM Mono',monospace;font-size:.72rem;letter-spacing:.04em;}
-.arrow-toggle-label{display:inline-flex;align-items:center;gap:5px;cursor:pointer;user-select:none;}
-.arrow-swatch{display:inline-block;width:18px;height:4px;border-radius:2px;vertical-align:middle;}
 .engine-line-player-spacer{border-top:1px solid #1A1A1A;border-bottom:2.5px solid #1A1A1A;padding:5px 4px;min-height:31px;box-sizing:border-box;}
-.engine-line-toggles-spacer{padding:5px 2px 2px;min-height:22px;box-sizing:border-box;}
 </style>
 
 <script>
@@ -129,12 +106,14 @@
     {% if not no_arrows %}
     var sfToggle = document.getElementById('board-sf-toggle');
     var lc0Toggle = document.getElementById('board-lc0-toggle');
+    var bestLineToggle = document.getElementById('board-best-line-toggle');
     return {
       showSF: sfToggle ? sfToggle.checked : true,
       showLc0: lc0Toggle ? lc0Toggle.checked : true,
+      bestLineOnly: bestLineToggle ? bestLineToggle.checked : false,
     };
     {% else %}
-    return { showSF: true, showLc0: true };
+    return { showSF: true, showLc0: true, bestLineOnly: false };
     {% endif %}
   }
 
@@ -143,11 +122,12 @@
    */
   function applyArrowVisibility() {
     var visibility = getArrowVisibilityState();
-    arrowOverlay.querySelectorAll('[data-engine="sf"]').forEach(function (element) {
-      element.style.display = visibility.showSF ? '' : 'none';
-    });
-    arrowOverlay.querySelectorAll('[data-engine="lc0"]').forEach(function (element) {
-      element.style.display = visibility.showLc0 ? '' : 'none';
+    arrowOverlay.querySelectorAll('[data-move-uci]').forEach(function (element) {
+      var engine = element.getAttribute('data-engine');
+      var tier = parseInt(element.getAttribute('data-tier'), 10) || 1;
+      var engineVisible = (engine === 'sf' && visibility.showSF) || (engine === 'lc0' && visibility.showLc0);
+      var tierVisible = !visibility.bestLineOnly || tier === 1;
+      element.style.display = engineVisible && tierVisible ? '' : 'none';
     });
   }
   window.boardApplyArrowVisibility = applyArrowVisibility;
