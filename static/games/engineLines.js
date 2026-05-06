@@ -6,6 +6,8 @@
  *   clickable engine-arrow metadata rendered on the main analysis board.
  *
  * Changelog:
+ *   2026-05-05 (#16): Matched Engine Lines header and spacer borders to the
+ *                      side-based White/Black border rules used on the main board
  *   2026-05-05 (#16): Restore Engine Lines controls when a continuation finishes loading
  *   2026-05-05 (#16): Hide Engine Lines controls until a continuation is loaded
  *   2026-05-05 (#16): Synced Engine Lines navigation with the main board and
@@ -110,6 +112,29 @@
   }
 
   /**
+   * Apply the same side-based border rules as the main board to the Engine Lines shell.
+   *
+   * White removes the top border. Black removes the bottom border.
+   */
+  function _applyEngineLineBorderStyles() {
+    var perspective = (window.WoodLeagueAnalysis && window.WoodLeagueAnalysis.getState().perspective) || 'white';
+    var topSide = perspective === 'white' ? 'Black' : 'White';
+    var bottomSide = perspective === 'white' ? 'White' : 'Black';
+    var header = document.getElementById('engine-lines-header');
+    var spacer = document.getElementById('engine-line-player-spacer');
+
+    if (header) {
+      header.style.borderTop = topSide === 'White' ? '0' : '2.5px solid #1A1A1A';
+      header.style.borderBottom = topSide === 'Black' ? '0' : '1px solid #1A1A1A';
+    }
+
+    if (spacer) {
+      spacer.style.borderTop = bottomSide === 'White' ? '0' : '1px solid #1A1A1A';
+      spacer.style.borderBottom = bottomSide === 'Black' ? '0' : '2.5px solid #1A1A1A';
+    }
+  }
+
+  /**
    * Apply the current loading or error state to the Engine Lines panel.
    *
    * @param {boolean} isLoading - Whether a continuation request is in flight.
@@ -209,6 +234,7 @@
       continuationElements.panel.style.display = 'none';
     }
 
+    _applyEngineLineBorderStyles();
     _setEngineLineControlsEnabled(false);
     _notifyEngineLines();
   }
@@ -323,6 +349,13 @@
     clearBoard: function () {
       _clearEngineLineBoard();
     },
+
+    /**
+     * Reapply side-based border styling to the Engine Lines shell.
+     */
+    applyBorderStyles: function () {
+      _applyEngineLineBorderStyles();
+    },
   };
 
   document.addEventListener(ENGINE_LINE_REQUEST_EVENT, function (evt) {
@@ -365,6 +398,7 @@
 
       // When only the perspective changes, keep the current continuation in sync.
       if (_currentEngineLineData && state.perspective !== previousMainBoardState.perspective) {
+        _applyEngineLineBorderStyles();
         var currentEngineLinePly = window.WoodLeagueEngineLines.getState().ply;
         var arrowData = _currentEngineLineData;
         window.WoodLeagueEngineLines.loadEngineLine(
@@ -386,6 +420,7 @@
     });
   }
 
+  _applyEngineLineBorderStyles();
   _setEngineLineControlsEnabled(false);
 })();
 
@@ -423,6 +458,9 @@ window.setupEngineLineBoard = function (framesJson, arrowLabelsJson, sanListJson
 
   // Inform EngineLines of total ply count
   window.WoodLeagueEngineLines.setTotalPlies(totalFrames - 1);
+  if (window.WoodLeagueEngineLines.applyBorderStyles) {
+    window.WoodLeagueEngineLines.applyBorderStyles();
+  }
 
   /**
    * Return the absolute ply of the first continuation move.

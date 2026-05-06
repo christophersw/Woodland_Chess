@@ -94,6 +94,7 @@
       <input type="checkbox" id="board-best-line-toggle" onchange="boardApplyArrowVisibility()">
       <span>Best line only</span>
     </label>
+    <button type="button" class="board-arrow-action" onclick="flipBoard()">Flip board</button>
   </fieldset>
   {% endif %}
 
@@ -147,11 +148,11 @@
                     min-height:31px;box-sizing:border-box;display:flex;align-items:center;background:rgba(242,230,208,.2);font-weight:700;">
           Click engine arrow to explore
         </div>
-        <div id="engine-lines-container" style="position:relative;background:rgba(242,230,208,.1);display:flex;align-items:center;justify-content:center;color:#8B3A2A;font-family:'DM Mono',monospace;font-size:.72rem;">
+        <div id="engine-lines-container" style="position:relative;background:rgba(242,230,208,.1);color:#8B3A2A;font-family:'DM Mono',monospace;font-size:.72rem;">
           {# Engine Lines board will be loaded here via HTMX #}
           <div id="engine-lines-loading" style="display:none;">Loading…</div>
         </div>
-        <div id="engine-lines-controls" style="display:none;align-items:center;gap:5px;padding:8px 0 6px;justify-content:center;border-top:1px solid #D4C4A0;flex-wrap:wrap;">
+        <div id="engine-lines-controls" style="display:none;align-items:center;gap:5px;padding:8px 0 6px;justify-content:center;flex-wrap:wrap;">
           <button class="board-btn" id="engine-lines-btn-start" title="Start" disabled>&#x23EE;</button>
           <button class="board-btn" id="engine-lines-btn-prev" title="Previous" disabled>&#x25C0;</button>
           <button class="board-btn" id="engine-lines-btn-play" title="Play/Pause" disabled>&#x25B6;</button>
@@ -295,6 +296,23 @@
     accent-color: #35586F;
   }
 
+  .board-arrow-action {
+    font-family: 'DM Mono', monospace;
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    color: #1A1A1A;
+    background: transparent;
+    border: 1.5px solid #1A1A1A;
+    padding: .32rem .7rem;
+    cursor: pointer;
+  }
+
+  .board-arrow-action:hover {
+    background: #1A1A1A;
+    color: #F2E6D0;
+  }
+
   .move-list-panel {
     border-top: 2.5px solid #1A1A1A;
     border-bottom: 1.5px solid #1A1A1A;
@@ -436,6 +454,16 @@ WoodLeagueAnalysis.initFromUrl({
 });
 
 window.WoodLeagueMoveAnnotations = {
+  colors: {
+    brilliant: '#2C6B4A',
+    best: '#4A6E8A',
+    great: '#4A6554',
+    excellent: '#4A6554',
+    good: '#D4A843',
+    inaccuracy: '#E07B7B',
+    mistake: '#CE3A4A',
+    blunder: '#B53541',
+  },
   symbols: {
     brilliant: '!!',
     best: '!',
@@ -570,6 +598,7 @@ function flipBoard() {
 (function () {
   var evalData = JSON.parse(document.getElementById('sf-eval-data').textContent || 'null');
   if (!evalData || typeof Plotly === 'undefined') return;
+  var moveQualityColors = (window.WoodLeagueMoveAnnotations && window.WoodLeagueMoveAnnotations.colors) || {};
 
   var MATE_THRESHOLD = 9000, DISPLAY_CAP = 1200;
   var points = evalData.map(function (d) {
@@ -580,12 +609,9 @@ function flipBoard() {
     return { ply: Number(d.ply), cp: cp, display: display, san: d.san || '', cls: d.classification || '' };
   });
 
-  // Perspective-aware colors: positive eval is good for the bottom player
-  function buildColors(perspective) {
+  function buildColors() {
     return points.map(function (p) {
-      var isWhiteFav = p.display >= 0;
-      var bottomPlayerFav = perspective === 'white' ? isWhiteFav : !isWhiteFav;
-      return bottomPlayerFav ? '#D4A843' : '#8B3A2A';
+      return moveQualityColors[p.cls] || '#C9B998';
     });
   }
 
@@ -621,8 +647,7 @@ function flipBoard() {
     annotations: [{ text: 'Stockfish Evaluation', xref: 'paper', yref: 'paper', x: 0.5, y: 1.10, xanchor: 'center', showarrow: false, font: { size: 14, color: '#1A1A1A', family: 'Georgia,serif' } }],
   };
 
-  var initPerspective = WoodLeagueAnalysis.getState().perspective;
-  Plotly.newPlot(sfDiv, [buildTrace(initPerspective), sfHighlight], layout, { displaylogo: false, responsive: true })
+  Plotly.newPlot(sfDiv, [buildTrace(), sfHighlight], layout, { displaylogo: false, responsive: true })
     .then(function () {
       sfDiv.on('plotly_click', function (d) {
         if (d.points && d.points.length) WoodLeagueAnalysis.setPly(d.points[0].x);
@@ -630,8 +655,6 @@ function flipBoard() {
 
       WoodLeagueAnalysis.subscribe(function (state) {
         Plotly.restyle(sfDiv, { x: [[state.ply, state.ply]], y: [[-DISPLAY_CAP, DISPLAY_CAP]] }, [1]);
-        // Flip colors on perspective change
-        Plotly.restyle(sfDiv, { 'marker.color': [buildColors(state.perspective)] }, [0]);
       });
     });
 })();
@@ -657,10 +680,14 @@ function flipBoard() {
     var topWins = wdlData.map(function (d) { return Number(isWhitePerspective ? d.wdl_loss : d.wdl_win) / 10; });
     var bottomLabel = isWhitePerspective ? ('♙ ' + white + ' Win') : ('♟ ' + black + ' Win');
     var topLabel = isWhitePerspective ? ('♟ ' + black + ' Win') : ('♙ ' + white + ' Win');
-    var bottomFill = isWhitePerspective ? 'rgba(242,230,208,0.90)' : 'rgba(26,26,26,0.85)';
-    var bottomLine = isWhitePerspective ? '#D4C4A0' : '#1A1A1A';
-    var topFill = isWhitePerspective ? 'rgba(26,26,26,0.85)' : 'rgba(242,230,208,0.90)';
-    var topLine = isWhitePerspective ? '#1A1A1A' : '#D4C4A0';
+    var whiteFill = 'rgba(255,255,255,0.98)';
+    var whiteLine = '#F7F7F7';
+    var blackFill = 'rgba(26,26,26,0.85)';
+    var blackLine = '#1A1A1A';
+    var bottomFill = isWhitePerspective ? whiteFill : blackFill;
+    var bottomLine = isWhitePerspective ? whiteLine : blackLine;
+    var topFill = isWhitePerspective ? blackFill : whiteFill;
+    var topLine = isWhitePerspective ? blackLine : whiteLine;
     return [
       { x: plies, y: bottomWins, name: bottomLabel, type: 'scatter', mode: 'lines', stackgroup: 'wdl', fill: 'tozeroy', fillcolor: bottomFill, line: { color: bottomLine, width: 1.5 }, hovertemplate: bottomLabel + ': %{y:.1f}%<extra></extra>' },
       { x: plies, y: draws, name: 'Draw', type: 'scatter', mode: 'lines', stackgroup: 'wdl', fill: 'tonexty', fillcolor: 'rgba(139,58,42,0.50)', line: { color: '#8B3A2A', width: 1 }, hovertemplate: 'Draw: %{y:.1f}%<extra></extra>' },
