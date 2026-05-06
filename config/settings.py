@@ -101,15 +101,6 @@ else:
         }
     }
 
-# Database connection pooling for production
-if IS_PRODUCTION:
-    # Configure connection pooling for better performance
-    DATABASES["default"]["CONN_MAX_AGE"] = 600
-    DATABASES["default"]["OPTIONS"] = {
-        "connect_timeout": 10,
-        "options": "-c default_transaction_isolation=read_committed",
-    }
-
 AUTHENTICATION_BACKENDS = [
     "accounts.backends.LegacyPbkdf2Backend",
     "django.contrib.auth.backends.ModelBackend",
